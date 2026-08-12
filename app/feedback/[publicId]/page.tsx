@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState, use } from "react";
-import { ThumbsUp, ThumbsDown, CheckCircle2, AlertCircle, Radio, Sparkles } from "lucide-react";
+import { ThumbsUp, ThumbsDown, CheckCircle2, AlertCircle, Radio, Clock, ShieldCheck } from "lucide-react";
 
 interface StudentSession {
   publicId: string;
@@ -24,12 +24,41 @@ export default function StudentFeedbackPage({
   const [voted, setVoted] = useState<"UP" | "DOWN" | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
+  // 15-Minute Cooldown State (900 seconds)
+  const COOLDOWN_SECONDS = 15 * 60;
+  const [cooldownRemaining, setCooldownRemaining] = useState<number>(0);
+
+  // Read 15-minute cooldown cookie & local storage on mount
   useEffect(() => {
-    // Check if previously voted in localStorage
     if (typeof window !== "undefined") {
       const storedVote = localStorage.getItem(`feedback_voted_${publicId}`);
       if (storedVote === "UP" || storedVote === "DOWN") {
         setVoted(storedVote);
+      }
+
+      // Read cookie timestamp or localStorage timestamp
+      const match = document.cookie.match(new RegExp(`fb_cooldown_${publicId}=([^;]+)`));
+      let lastTime: number | null = null;
+
+      if (match && match[1]) {
+        const parsed = parseInt(match[1], 10);
+        if (!isNaN(parsed)) lastTime = parsed;
+      }
+
+      if (!lastTime) {
+        const storedTs = localStorage.getItem(`feedback_timestamp_${publicId}`);
+        if (storedTs) {
+          const parsed = parseInt(storedTs, 10);
+          if (!isNaN(parsed)) lastTime = parsed;
+        }
+      }
+
+      if (lastTime) {
+        const elapsedSec = Math.floor((Date.now() - lastTime) / 1000);
+        const remaining = COOLDOWN_SECONDS - elapsedSec;
+        if (remaining > 0) {
+          setCooldownRemaining(remaining);
+        }
       }
     }
 
@@ -43,14 +72,44 @@ export default function StudentFeedbackPage({
           setErrorMsg(data.error || "Session not found");
         }
       })
-      .catch((err) => {
+      .catch(() => {
         setErrorMsg("Failed to connect to feedback server");
       })
       .finally(() => setLoading(false));
   }, [publicId]);
 
+  // Live 1-Second Countdown Timer
+  useEffect(() => {
+    if (cooldownRemaining <= 0) return;
+
+    const timer = setInterval(() => {
+      setCooldownRemaining((prev) => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          setVoted(null);
+          if (typeof window !== "undefined") {
+            localStorage.removeItem(`feedback_voted_${publicId}`);
+            localStorage.removeItem(`feedback_timestamp_${publicId}`);
+            document.cookie = `fb_cooldown_${publicId}=; path=/; max-age=0`;
+          }
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [cooldownRemaining, publicId]);
+
+  // Format seconds into MM:SS
+  const formatTime = (totalSeconds: number) => {
+    const mins = Math.floor(totalSeconds / 60);
+    const secs = totalSeconds % 60;
+    return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
+  };
+
   const handleVote = async (vote: "UP" | "DOWN") => {
-    if (submitting || voted) return;
+    if (submitting || voted || cooldownRemaining > 0) return;
     setSubmitting(true);
     setErrorMsg(null);
 
@@ -71,12 +130,20 @@ export default function StudentFeedbackPage({
 
       const data = await res.json();
 
-      if (data.success) {
+      if (res.ok && data.success) {
+        const now = Date.now();
         setVoted(vote);
+        setCooldownRemaining(COOLDOWN_SECONDS);
+
         if (typeof window !== "undefined") {
           localStorage.setItem(`feedback_voted_${publicId}`, vote);
+          localStorage.setItem(`feedback_timestamp_${publicId}`, now.toString());
+          document.cookie = `fb_cooldown_${publicId}=${now}; path=/; max-age=${COOLDOWN_SECONDS}; SameSite=Lax`;
         }
       } else {
+        if (data.remainingSeconds) {
+          setCooldownRemaining(data.remainingSeconds);
+        }
         setErrorMsg(data.error || "Failed to submit feedback");
       }
     } catch (err: any) {
@@ -145,36 +212,51 @@ export default function StudentFeedbackPage({
                 : "This session is currently in DRAFT status. Feedback will open when the speaker starts the session."}
             </p>
           </div>
-        ) : voted ? (
-          <div className="glass-panel p-8 rounded-3xl border border-emerald-500/40 bg-emerald-950/20 space-y-4 animate-in fade-in zoom-in duration-300">
-            <div className="h-16 w-16 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center mx-auto">
-              <CheckCircle2 className="h-10 w-10 animate-bounce" />
+        ) : cooldownRemaining > 0 ? (
+          /* 15-Minute Cooldown Lock Screen */
+          <div className="glass-panel p-8 rounded-3xl border border-indigo-500/40 bg-indigo-950/20 space-y-5 animate-in fade-in zoom-in duration-300">
+            <div className="h-16 w-16 rounded-2xl bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 flex items-center justify-center mx-auto shadow-lg shadow-indigo-500/20">
+              <Clock className="h-9 w-9 animate-pulse" />
             </div>
 
-            <div className="space-y-1">
+            <div className="space-y-1.5">
               <h2 className="text-xl font-extrabold text-white">
-                Thank You for Your Feedback!
+                Feedback Submitted!
               </h2>
               <p className="text-xs text-slate-300">
                 You voted <strong className="text-emerald-400">{voted === "UP" ? "👍 Positive" : "👎 Negative"}</strong>
               </p>
             </div>
 
-            <p className="text-[11px] text-slate-400">
-              Your response was recorded live on the Experience Center dashboard.
+            {/* Live Digital Countdown Timer */}
+            <div className="bg-slate-900/90 border border-slate-800 p-4 rounded-2xl space-y-1">
+              <div className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">
+                15-Minute Cooldown Active
+              </div>
+              <div className="text-3xl font-black text-indigo-300 font-mono tracking-wider">
+                {formatTime(cooldownRemaining)}
+              </div>
+              <div className="text-[11px] text-slate-400">
+                Time remaining before next vote allowed
+              </div>
+            </div>
+
+            {/* Countdown Progress Bar */}
+            <div className="h-2 w-full bg-slate-900 rounded-full overflow-hidden border border-slate-800">
+              <div
+                className="h-full bg-gradient-to-r from-indigo-500 to-emerald-400 transition-all duration-1000"
+                style={{ width: `${(cooldownRemaining / COOLDOWN_SECONDS) * 100}%` }}
+              ></div>
+            </div>
+
+            <p className="text-[11px] text-slate-400 leading-relaxed">
+              To prevent duplicate votes and spam, feedback submissions are restricted to once every 15 minutes per device.
             </p>
 
-            <button
-              onClick={() => {
-                setVoted(null);
-                if (typeof window !== "undefined") {
-                  localStorage.removeItem(`feedback_voted_${publicId}`);
-                }
-              }}
-              className="mt-4 text-xs text-indigo-400 hover:text-indigo-300 underline underline-offset-4"
-            >
-              Change or submit another vote
-            </button>
+            <div className="pt-2 flex items-center justify-center space-x-1.5 text-[11px] text-emerald-400">
+              <ShieldCheck className="h-3.5 w-3.5" />
+              <span>15-Min Cookie Protection Active</span>
+            </div>
           </div>
         ) : (
           <div className="space-y-6">
@@ -193,13 +275,13 @@ export default function StudentFeedbackPage({
               </div>
             )}
 
-            {/* Big 👍 / 👎 Touch Buttons */}
+            {/* Touch Voting Buttons */}
             <div className="grid grid-cols-2 gap-4">
               {/* Positive Vote */}
               <button
                 onClick={() => handleVote("UP")}
                 disabled={submitting}
-                className="glass-panel glass-panel-hover p-8 rounded-3xl border border-emerald-500/30 bg-emerald-950/20 flex flex-col items-center justify-center space-y-3 group active:scale-95 transition-all cursor-pointer"
+                className="glass-panel glass-panel-hover p-8 rounded-3xl border border-emerald-500/30 bg-emerald-950/20 flex flex-col items-center justify-center space-y-3 group active:scale-95 transition-all cursor-pointer disabled:opacity-50"
               >
                 <div className="h-16 w-16 rounded-2xl bg-emerald-500/20 text-emerald-400 group-hover:scale-110 group-hover:bg-emerald-500 group-hover:text-white transition-all flex items-center justify-center shadow-lg shadow-emerald-500/20">
                   <ThumbsUp className="h-8 w-8" />
@@ -213,7 +295,7 @@ export default function StudentFeedbackPage({
               <button
                 onClick={() => handleVote("DOWN")}
                 disabled={submitting}
-                className="glass-panel glass-panel-hover p-8 rounded-3xl border border-rose-500/30 bg-rose-950/20 flex flex-col items-center justify-center space-y-3 group active:scale-95 transition-all cursor-pointer"
+                className="glass-panel glass-panel-hover p-8 rounded-3xl border border-rose-500/30 bg-rose-950/20 flex flex-col items-center justify-center space-y-3 group active:scale-95 transition-all cursor-pointer disabled:opacity-50"
               >
                 <div className="h-16 w-16 rounded-2xl bg-rose-500/20 text-rose-400 group-hover:scale-110 group-hover:bg-rose-500 group-hover:text-white transition-all flex items-center justify-center shadow-lg shadow-rose-500/20">
                   <ThumbsDown className="h-8 w-8" />
@@ -222,6 +304,11 @@ export default function StudentFeedbackPage({
                   POOR 👎
                 </span>
               </button>
+            </div>
+
+            <div className="flex items-center justify-center space-x-1.5 text-[11px] text-slate-500 pt-2">
+              <ShieldCheck className="h-3.5 w-3.5 text-indigo-400" />
+              <span>Feedback limit: 1 response per 15 minutes</span>
             </div>
           </div>
         )}
