@@ -8,6 +8,8 @@ import {
   ShieldCheck,
 } from "lucide-react";
 
+import LogoutButton from "@/components/LogoutButton";
+
 export default function AdminLayout({
   children,
 }: {
@@ -75,6 +77,8 @@ export default function AdminLayout({
             <ShieldCheck className="h-3.5 w-3.5 text-emerald-400" />
             <span>Admin</span>
           </div>
+
+          <LogoutButton />
         </div>
       </header>
 
