@@ -37,6 +37,9 @@ interface EventItem {
   metadata?: any;
 }
 
+import RealtimeGraphs, { TimeSeriesBucket } from "./RealtimeGraphs";
+import SessionActionModal from "@/components/SessionActionModal";
+
 interface SessionDetails {
   id: string;
   publicId: string;
@@ -55,6 +58,7 @@ interface SessionDetails {
   satisfaction: number;
   feedbacks: FeedbackItem[];
   events: EventItem[];
+  timeSeries?: TimeSeriesBucket[];
 }
 
 export default function SessionControlRoomPage({
@@ -69,6 +73,9 @@ export default function SessionControlRoomPage({
   const [updatingStatus, setUpdatingStatus] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
   const [feedbackUrl, setFeedbackUrl] = useState("");
+
+  // Modal State
+  const [modalType, setModalType] = useState<"START" | "END" | null>(null);
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -110,17 +117,11 @@ export default function SessionControlRoomPage({
       console.error("Failed to start session:", err);
     } finally {
       setUpdatingStatus(false);
+      setModalType(null);
     }
   };
 
   const handleEndSession = async () => {
-    if (
-      !confirm(
-        "Are you sure you want to end this session? Students will no longer be able to submit feedback."
-      )
-    )
-      return;
-
     setUpdatingStatus(true);
     try {
       const res = await fetch(`/api/sessions/${publicId}/end`, {
@@ -134,6 +135,7 @@ export default function SessionControlRoomPage({
       console.error("Failed to end session:", err);
     } finally {
       setUpdatingStatus(false);
+      setModalType(null);
     }
   };
 
@@ -257,9 +259,9 @@ export default function SessionControlRoomPage({
         <div className="grid grid-cols-1 sm:grid-cols-2 md:flex md:flex-col lg:flex-row items-stretch gap-2.5 sm:gap-3 w-full md:w-auto">
           {isDraft && (
             <button
-              onClick={handleStartSession}
+              onClick={() => setModalType("START")}
               disabled={updatingStatus}
-              className="flex items-center justify-center space-x-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs sm:text-sm px-5 py-3.5 rounded-xl shadow-lg shadow-emerald-600/30 transition-all active:scale-95 disabled:opacity-50"
+              className="flex items-center justify-center space-x-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs sm:text-sm px-5 py-3.5 rounded-xl shadow-lg shadow-emerald-600/30 transition-all active:scale-95 disabled:opacity-50 cursor-pointer"
             >
               <Play className="h-4 w-4 fill-current animate-pulse shrink-0" />
               <span className="whitespace-nowrap">START SESSION</span>
@@ -268,9 +270,9 @@ export default function SessionControlRoomPage({
 
           {isLive && (
             <button
-              onClick={handleEndSession}
+              onClick={() => setModalType("END")}
               disabled={updatingStatus}
-              className="flex items-center justify-center space-x-2 bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-500 hover:to-red-500 text-white font-bold text-xs sm:text-sm px-5 py-3.5 rounded-xl shadow-lg shadow-rose-600/30 transition-all active:scale-95 disabled:opacity-50"
+              className="flex items-center justify-center space-x-2 bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-500 hover:to-red-500 text-white font-bold text-xs sm:text-sm px-5 py-3.5 rounded-xl shadow-lg shadow-rose-600/30 transition-all active:scale-95 disabled:opacity-50 cursor-pointer"
             >
               <Square className="h-4 w-4 fill-current shrink-0" />
               <span className="whitespace-nowrap">END SESSION</span>
@@ -358,6 +360,16 @@ export default function SessionControlRoomPage({
           </div>
         </div>
       </div>
+
+      {/* 3 Realtime Analytics Graphs */}
+      <RealtimeGraphs
+        upVotes={session.upVotes}
+        downVotes={session.downVotes}
+        totalVotes={session.totalVotes}
+        satisfaction={session.satisfaction}
+        timeSeries={session.timeSeries || []}
+        isLive={isLive}
+      />
 
       {/* Main Grid: QR & Links | Live Feed | Event Audit */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -519,6 +531,17 @@ export default function SessionControlRoomPage({
           )}
         </div>
       </div>
+
+      {/* Start & End Session Confirmation Modal */}
+      <SessionActionModal
+        isOpen={modalType !== null}
+        type={modalType}
+        sessionName={session.name}
+        publicId={session.publicId}
+        isSubmitting={updatingStatus}
+        onClose={() => setModalType(null)}
+        onConfirm={modalType === "START" ? handleStartSession : handleEndSession}
+      />
     </div>
   );
 }
