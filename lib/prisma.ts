@@ -10,11 +10,15 @@ const connectionString = process.env.DATABASE_URL || "";
 const pool = new pg.Pool({ connectionString });
 const adapter = new PrismaPg(pool);
 
-export const prisma =
-  globalForPrisma.prisma ??
+const createPrismaClient = () =>
   new PrismaClient({
     adapter,
   });
+
+export const prisma =
+  globalForPrisma.prisma && "user" in globalForPrisma.prisma
+    ? globalForPrisma.prisma
+    : createPrismaClient();
 
 if (process.env.NODE_ENV !== "production") {
   globalForPrisma.prisma = prisma;
