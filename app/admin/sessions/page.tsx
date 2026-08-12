@@ -24,6 +24,8 @@ import {
   ChevronRight,
 } from "lucide-react";
 
+import SessionActionModal from "@/components/SessionActionModal";
+
 interface Session {
   id: string;
   publicId: string;
@@ -47,6 +49,20 @@ export default function AdminSessionsPage() {
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  // Modal State
+  const [actionModal, setActionModal] = useState<{
+    isOpen: boolean;
+    type: "START" | "END" | null;
+    publicId: string;
+    sessionName: string;
+  }>({
+    isOpen: false,
+    type: null,
+    publicId: "",
+    sessionName: "",
+  });
+  const [isSubmittingModal, setIsSubmittingModal] = useState(false);
 
   const fetchSessions = async () => {
     try {
@@ -76,34 +92,36 @@ export default function AdminSessionsPage() {
     setTimeout(() => setCopiedId(null), 2000);
   };
 
-  const handleQuickStart = async (publicId: string, e: React.MouseEvent) => {
+  const openStartModal = (publicId: string, sessionName: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    try {
-      const res = await fetch(`/api/sessions/${publicId}/start`, {
-        method: "POST",
-      });
-      const data = await res.json();
-      if (data.success) {
-        fetchSessions();
-      }
-    } catch (err) {
-      console.error("Failed to start session:", err);
-    }
+    setActionModal({ isOpen: true, type: "START", publicId, sessionName });
   };
 
-  const handleQuickEnd = async (publicId: string, e: React.MouseEvent) => {
+  const openEndModal = (publicId: string, sessionName: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!confirm("Are you sure you want to end this live session? Feedback will be closed.")) return;
+    setActionModal({ isOpen: true, type: "END", publicId, sessionName });
+  };
+
+  const executeSessionAction = async () => {
+    if (!actionModal.type || !actionModal.publicId) return;
+
+    setIsSubmittingModal(true);
+    const endpoint =
+      actionModal.type === "START"
+        ? `/api/sessions/${actionModal.publicId}/start`
+        : `/api/sessions/${actionModal.publicId}/end`;
+
     try {
-      const res = await fetch(`/api/sessions/${publicId}/end`, {
-        method: "POST",
-      });
+      const res = await fetch(endpoint, { method: "POST" });
       const data = await res.json();
       if (data.success) {
         fetchSessions();
       }
     } catch (err) {
-      console.error("Failed to end session:", err);
+      console.error(`Failed to ${actionModal.type.toLowerCase()} session:`, err);
+    } finally {
+      setIsSubmittingModal(false);
+      setActionModal({ isOpen: false, type: null, publicId: "", sessionName: "" });
     }
   };
 
@@ -430,16 +448,16 @@ export default function AdminSessionsPage() {
                   {/* Status Toggle Quick Button */}
                   {session.status === "DRAFT" ? (
                     <button
-                      onClick={(e) => handleQuickStart(session.publicId, e)}
-                      className="flex-1 flex items-center justify-center space-x-1 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-400 border border-emerald-500/30 text-xs font-semibold py-1.5 rounded-lg transition-all"
+                      onClick={(e) => openStartModal(session.publicId, session.name, e)}
+                      className="flex-1 flex items-center justify-center space-x-1 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-400 border border-emerald-500/30 text-xs font-semibold py-1.5 rounded-lg transition-all cursor-pointer"
                     >
                       <Play className="h-3 w-3 fill-current" />
                       <span>Start Session</span>
                     </button>
                   ) : session.status === "LIVE" ? (
                     <button
-                      onClick={(e) => handleQuickEnd(session.publicId, e)}
-                      className="flex-1 flex items-center justify-center space-x-1 bg-rose-600/20 hover:bg-rose-600/30 text-rose-400 border border-rose-500/30 text-xs font-semibold py-1.5 rounded-lg transition-all"
+                      onClick={(e) => openEndModal(session.publicId, session.name, e)}
+                      className="flex-1 flex items-center justify-center space-x-1 bg-rose-600/20 hover:bg-rose-600/30 text-rose-400 border border-rose-500/30 text-xs font-semibold py-1.5 rounded-lg transition-all cursor-pointer"
                     >
                       <Square className="h-3 w-3 fill-current" />
                       <span>End Session</span>
@@ -472,6 +490,17 @@ export default function AdminSessionsPage() {
           ))}
         </div>
       )}
+
+      {/* Start & End Session Confirmation Modal */}
+      <SessionActionModal
+        isOpen={actionModal.isOpen}
+        type={actionModal.type}
+        sessionName={actionModal.sessionName}
+        publicId={actionModal.publicId}
+        isSubmitting={isSubmittingModal}
+        onClose={() => setActionModal({ isOpen: false, type: null, publicId: "", sessionName: "" })}
+        onConfirm={executeSessionAction}
+      />
     </div>
   );
 }
