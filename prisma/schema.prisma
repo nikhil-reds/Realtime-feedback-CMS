@@ -68,3 +68,13 @@ model SessionEvent {
   @@index([sessionId])
   @@index([eventType])
 }
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String
+  name      String?
+  role      String   @default("ADMIN")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
