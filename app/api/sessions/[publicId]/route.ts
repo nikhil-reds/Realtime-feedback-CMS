@@ -38,7 +38,7 @@ export async function GET(
     // Calculate votes and build time-series aggregation for 3 realtime graphs
     const allFeedbacks = await prisma.feedback.findMany({
       where: { sessionId: session.id },
-      select: { vote: true, createdAt: true },
+      select: { vote: true, createdAt: true, visitorCode: true, rating: true },
       orderBy: { createdAt: "asc" },
     });
 
@@ -167,7 +167,7 @@ export async function PATCH(
   try {
     const { publicId } = await params;
     const body = await req.json();
-    const { name, speaker, location, description, scheduledAt } = body;
+    const { name, speaker, location, description, scheduledAt, status } = body;
 
     const updated = await prisma.session.update({
       where: { publicId },
@@ -177,6 +177,7 @@ export async function PATCH(
         ...(location && { location }),
         ...(description !== undefined && { description }),
         ...(scheduledAt !== undefined && { scheduledAt: scheduledAt ? new Date(scheduledAt) : null }),
+        ...(status && { status }),
       },
     });
 
