@@ -1,7 +1,8 @@
 "use client";
 
 import React, { useEffect, useState, use } from "react";
-import { ThumbsUp, ThumbsDown, CheckCircle2, AlertCircle, Radio, Clock, ShieldCheck } from "lucide-react";
+import { CheckCircle2, AlertCircle, Radio, Clock, ShieldCheck, Check } from "lucide-react";
+import { SCALE as SCALE_OPTIONS } from "@/lib/scale";
 
 interface StudentSession {
   publicId: string;
@@ -21,7 +22,8 @@ export default function StudentFeedbackPage({
   const [session, setSession] = useState<StudentSession | null>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
-  const [voted, setVoted] = useState<"UP" | "DOWN" | null>(null);
+  const [votedRating, setVotedRating] = useState<number | null>(null);
+  const [votedLabel, setVotedLabel] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   // 15-Minute Cooldown State (900 seconds)
@@ -31,9 +33,14 @@ export default function StudentFeedbackPage({
   // Read 15-minute cooldown cookie & local storage on mount
   useEffect(() => {
     if (typeof window !== "undefined") {
-      const storedVote = localStorage.getItem(`feedback_voted_${publicId}`);
-      if (storedVote === "UP" || storedVote === "DOWN") {
-        setVoted(storedVote);
+      const storedRating = localStorage.getItem(`feedback_rating_${publicId}`);
+      if (storedRating) {
+        const num = parseInt(storedRating, 10);
+        if (!isNaN(num)) {
+          setVotedRating(num);
+          const found = SCALE_OPTIONS.find((s) => s.n === num);
+          if (found) setVotedLabel(found.t);
+        }
       }
 
       // Read cookie timestamp or localStorage timestamp
@@ -86,9 +93,10 @@ export default function StudentFeedbackPage({
       setCooldownRemaining((prev) => {
         if (prev <= 1) {
           clearInterval(timer);
-          setVoted(null);
+          setVotedRating(null);
+          setVotedLabel(null);
           if (typeof window !== "undefined") {
-            localStorage.removeItem(`feedback_voted_${publicId}`);
+            localStorage.removeItem(`feedback_rating_${publicId}`);
             localStorage.removeItem(`feedback_timestamp_${publicId}`);
             document.cookie = `fb_cooldown_${publicId}=; path=/; max-age=0`;
           }
@@ -108,10 +116,14 @@ export default function StudentFeedbackPage({
     return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
   };
 
-  const handleVote = async (vote: "UP" | "DOWN") => {
-    if (submitting || voted || cooldownRemaining > 0) return;
+  const handleRatingSelect = async (opt: { n: number; t: string; hex: string }) => {
+    if (submitting || votedRating !== null || cooldownRemaining > 0) return;
     setSubmitting(true);
     setErrorMsg(null);
+
+    if (typeof navigator !== "undefined" && navigator.vibrate) {
+      navigator.vibrate(8);
+    }
 
     try {
       let visitorId = typeof window !== "undefined" ? localStorage.getItem("visitor_id") : null;
@@ -122,21 +134,30 @@ export default function StudentFeedbackPage({
         }
       }
 
+      let visitorCode: string | null = null;
+      if (typeof document !== "undefined") {
+        const codeMatch = document.cookie.match(new RegExp(`pulse_code_${publicId}=([^;]+)`));
+        if (codeMatch && codeMatch[1]) visitorCode = codeMatch[1];
+      }
+
+      const voteType = opt.n <= 3 ? "UP" : "DOWN";
+
       const res = await fetch(`/api/sessions/${publicId}/feedback`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ vote, visitorId }),
+        body: JSON.stringify({ vote: voteType, rating: opt.n, visitorId, visitorCode }),
       });
 
       const data = await res.json();
 
       if (res.ok && data.success) {
         const now = Date.now();
-        setVoted(vote);
+        setVotedRating(opt.n);
+        setVotedLabel(opt.t);
         setCooldownRemaining(COOLDOWN_SECONDS);
 
         if (typeof window !== "undefined") {
-          localStorage.setItem(`feedback_voted_${publicId}`, vote);
+          localStorage.setItem(`feedback_rating_${publicId}`, opt.n.toString());
           localStorage.setItem(`feedback_timestamp_${publicId}`, now.toString());
           document.cookie = `fb_cooldown_${publicId}=${now}; path=/; max-age=${COOLDOWN_SECONDS}; SameSite=Lax`;
         }
@@ -155,19 +176,19 @@ export default function StudentFeedbackPage({
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-slate-950 text-white flex flex-col items-center justify-center p-4">
-        <Radio className="h-10 w-10 text-indigo-500 animate-pulse mb-3" />
-        <p className="text-slate-400 text-sm font-medium">Validating feedback session...</p>
+      <div className="min-h-screen bg-[#0A0B0C] text-[#E9EBED] flex flex-col items-center justify-center p-4">
+        <Radio className="h-8 w-8 text-[#2FD98A] animate-pulse mb-3" />
+        <p className="text-[#7A8085] text-xs font-mono tracking-widest uppercase">Validating room signal...</p>
       </div>
     );
   }
 
   if (errorMsg && !session) {
     return (
-      <div className="min-h-screen bg-slate-950 text-white flex flex-col items-center justify-center p-6 text-center max-w-sm mx-auto space-y-4">
-        <AlertCircle className="h-12 w-12 text-rose-500" />
-        <h1 className="text-xl font-bold">Session Unavailable</h1>
-        <p className="text-slate-400 text-sm">{errorMsg}</p>
+      <div className="min-h-screen bg-[#0A0B0C] text-[#E9EBED] flex flex-col items-center justify-center p-6 text-center max-w-sm mx-auto space-y-4 font-mono">
+        <AlertCircle className="h-10 w-10 text-rose-500" />
+        <h1 className="text-sm font-bold tracking-widest uppercase">Session Unavailable</h1>
+        <p className="text-[#7A8085] text-xs leading-relaxed">{errorMsg}</p>
       </div>
     );
   }
@@ -176,147 +197,144 @@ export default function StudentFeedbackPage({
   const isCompleted = session?.status === "COMPLETED";
 
   return (
-    <div className="min-h-screen bg-slate-950 text-white flex flex-col justify-between p-6 max-w-md mx-auto relative font-sans selection:bg-indigo-500 select-none">
-      {/* Ambient background glow */}
-      <div className="absolute top-10 left-1/2 -translate-x-1/2 w-64 h-64 bg-indigo-600/20 blur-3xl rounded-full pointer-events-none"></div>
-
-      {/* Header */}
-      <header className="pt-4 text-center space-y-2 z-10">
-        <div className="inline-flex items-center space-x-2 px-3 py-1 rounded-full bg-slate-900 border border-slate-800 text-xs font-semibold text-indigo-400">
-          <Radio className="h-3.5 w-3.5 animate-pulse text-indigo-400" />
-          <span>Session ID: {session?.publicId}</span>
+    <div className="min-h-screen bg-[#0A0B0C] text-[#E9EBED] flex flex-col justify-between p-4 sm:p-6 max-w-md mx-auto relative font-sans selection:bg-[#2FD98A] selection:text-black select-none">
+      {/* Header Bar */}
+      <header className="pt-2 pb-4 flex items-center justify-between border-b border-[#1B1D20] flex-none">
+        <div className="flex flex-col">
+          <div className="font-mono text-[11px] font-bold tracking-[0.42em] text-[#E9EBED]">PULSE</div>
+          <div className="font-mono text-[9px] tracking-[0.14em] uppercase text-[#4C5155] truncate max-w-[200px]">
+            {session?.name}
+          </div>
         </div>
 
-        <h1 className="text-2xl font-black tracking-tight text-white leading-snug">
-          {session?.name}
-        </h1>
-
-        <div className="text-xs text-slate-400 space-x-2">
-          <span>👤 {session?.speaker}</span>
-          <span>•</span>
-          <span>📍 {session?.location}</span>
+        <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-[2px] border border-[#26292D] bg-[#101113] font-mono text-[10px] text-[#7A8085]">
+          <span className="w-2 h-2 rounded-full bg-[#2FD98A] animate-ping" />
+          <span>{session?.publicId}</span>
         </div>
       </header>
 
       {/* Main Feedback Interface */}
-      <main className="my-auto py-8 text-center space-y-6 z-10">
+      <main className="flex-1 flex flex-col justify-center py-4 space-y-4">
         {!isLive ? (
-          <div className="glass-panel p-8 rounded-3xl border border-slate-800 space-y-4">
-            <AlertCircle className="h-12 w-12 text-amber-400 mx-auto" />
-            <h2 className="text-lg font-bold text-white">
+          <div className="p-6 border border-[#26292D] bg-[#101113] rounded-[3px] text-center space-y-3">
+            <AlertCircle className="h-8 w-8 text-[#E2C63F] mx-auto" />
+            <h2 className="font-mono text-sm font-bold text-[#E9EBED] tracking-widest uppercase">
               {isCompleted ? "Session Completed" : "Session Closed"}
             </h2>
-            <p className="text-slate-400 text-xs leading-relaxed">
+            <p className="text-[#7A8085] text-xs leading-relaxed font-sans">
               {isCompleted
-                ? "This feedback session has ended. Thank you for participating!"
-                : "This session is currently in DRAFT status. Feedback will open when the speaker starts the session."}
+                ? "This session has ended. Thank you for participating!"
+                : "This session is currently waiting for the instructor to start."}
             </p>
           </div>
         ) : cooldownRemaining > 0 ? (
-          /* 15-Minute Cooldown Lock Screen */
-          <div className="glass-panel p-8 rounded-3xl border border-indigo-500/40 bg-indigo-950/20 space-y-5 animate-in fade-in zoom-in duration-300">
-            <div className="h-16 w-16 rounded-2xl bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 flex items-center justify-center mx-auto shadow-lg shadow-indigo-500/20">
-              <Clock className="h-9 w-9 animate-pulse" />
+          /* Cooldown Lock Screen */
+          <div className="p-6 border border-[#26292D] bg-[#101113] rounded-[3px] space-y-4 text-center animate-in fade-in duration-300">
+            <div className="h-12 w-12 rounded-[3px] bg-[#2FD98A]/10 text-[#2FD98A] border border-[#2FD98A]/30 flex items-center justify-center mx-auto">
+              <Clock className="h-6 w-6 animate-pulse" />
             </div>
 
-            <div className="space-y-1.5">
-              <h2 className="text-xl font-extrabold text-white">
-                Feedback Submitted!
+            <div className="space-y-1">
+              <h2 className="font-mono text-sm font-bold text-[#E9EBED] tracking-widest uppercase">
+                Signal Marked!
               </h2>
-              <p className="text-xs text-slate-300">
-                You voted <strong className="text-emerald-400">{voted === "UP" ? "👍 Positive" : "👎 Negative"}</strong>
-              </p>
+              {votedLabel && (
+                <p className="text-xs text-[#7A8085] font-mono">
+                  Submitted: <strong className="text-[#E9EBED]">"{votedLabel}"</strong>
+                </p>
+              )}
             </div>
 
-            {/* Live Digital Countdown Timer */}
-            <div className="bg-slate-900/90 border border-slate-800 p-4 rounded-2xl space-y-1">
-              <div className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">
-                15-Minute Cooldown Active
+            {/* Digital Countdown Timer */}
+            <div className="bg-[#0A0B0C] border border-[#1B1D20] p-4 rounded-[2px] space-y-1">
+              <div className="font-mono text-[9.5px] uppercase font-medium text-[#4C5155] tracking-widest">
+                Cooldown Active
               </div>
-              <div className="text-3xl font-black text-indigo-300 font-mono tracking-wider">
+              <div className="font-mono text-2xl font-bold text-[#E9EBED] tabular-nums tracking-wider">
                 {formatTime(cooldownRemaining)}
               </div>
-              <div className="text-[11px] text-slate-400">
-                Time remaining before next vote allowed
-              </div>
+              <div className="text-[10px] text-[#7A8085]">Remaining before next signal change</div>
             </div>
 
             {/* Countdown Progress Bar */}
-            <div className="h-2 w-full bg-slate-900 rounded-full overflow-hidden border border-slate-800">
+            <div className="h-1.5 w-full bg-[#0A0B0C] rounded-full overflow-hidden border border-[#1B1D20]">
               <div
-                className="h-full bg-gradient-to-r from-indigo-500 to-emerald-400 transition-all duration-1000"
+                className="h-full bg-[#2FD98A] transition-all duration-1000"
                 style={{ width: `${(cooldownRemaining / COOLDOWN_SECONDS) * 100}%` }}
-              ></div>
+              />
             </div>
 
-            <p className="text-[11px] text-slate-400 leading-relaxed">
-              To prevent duplicate votes and spam, feedback submissions are restricted to once every 15 minutes per device.
-            </p>
-
-            <div className="pt-2 flex items-center justify-center space-x-1.5 text-[11px] text-emerald-400">
-              <ShieldCheck className="h-3.5 w-3.5" />
-              <span>15-Min Cookie Protection Active</span>
+            <div className="pt-1 flex items-center justify-center gap-1.5 font-mono text-[10px] text-[#4C5155]">
+              <ShieldCheck className="h-3.5 w-3.5 text-[#2FD98A]" />
+              <span>15-Minute Signal Protection</span>
             </div>
           </div>
         ) : (
-          <div className="space-y-6">
-            <div className="space-y-1">
-              <h2 className="text-xl font-extrabold text-white">
-                How was your experience?
+          <div className="space-y-3">
+            <div className="space-y-0.5 text-left px-1">
+              <h2 className="font-mono text-xs font-bold uppercase tracking-[0.2em] text-[#E9EBED]">
+                Mark Room Signal
               </h2>
-              <p className="text-xs text-slate-400">
-                Tap an option below to submit instant realtime feedback.
+              <p className="text-[11.5px] text-[#7A8085]">
+                Tap the line that matches how you feel right now.
               </p>
             </div>
 
             {errorMsg && (
-              <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-400 text-xs">
+              <div className="p-3 rounded-[2px] bg-rose-950/30 border border-rose-900 text-[#E8434B] text-xs font-mono">
                 {errorMsg}
               </div>
             )}
 
-            {/* Touch Voting Buttons */}
-            <div className="grid grid-cols-2 gap-4">
-              {/* Positive Vote */}
-              <button
-                onClick={() => handleVote("UP")}
-                disabled={submitting}
-                className="glass-panel glass-panel-hover p-8 rounded-3xl border border-emerald-500/30 bg-emerald-950/20 flex flex-col items-center justify-center space-y-3 group active:scale-95 transition-all cursor-pointer disabled:opacity-50"
-              >
-                <div className="h-16 w-16 rounded-2xl bg-emerald-500/20 text-emerald-400 group-hover:scale-110 group-hover:bg-emerald-500 group-hover:text-white transition-all flex items-center justify-center shadow-lg shadow-emerald-500/20">
-                  <ThumbsUp className="h-8 w-8" />
-                </div>
-                <span className="font-extrabold text-base text-emerald-300 group-hover:text-emerald-200">
-                  GREAT 👍
-                </span>
-              </button>
+            {/* 7 PULSE Sentiment Buttons */}
+            <div className="flex flex-col gap-2">
+              {SCALE_OPTIONS.map((opt) => {
+                const isSelected = votedRating === opt.n;
+                return (
+                  <button
+                    key={opt.n}
+                    onClick={() => handleRatingSelect(opt)}
+                    disabled={submitting}
+                    className={`relative w-full h-[52px] rounded-[3px] px-4 flex items-center gap-3.5 border transition-all text-left group active:scale-[0.98] cursor-pointer disabled:opacity-50 ${
+                      isSelected
+                        ? "border-white bg-[#101113] text-[#E9EBED]"
+                        : "border-[#1B1D20] hover:border-[#26292D] bg-[#0C0D0F] hover:bg-[#101113] text-[#E9EBED]"
+                    }`}
+                    style={
+                      {
+                        "--edge": opt.hex,
+                      } as React.CSSProperties
+                    }
+                  >
+                    {/* Colored Edge Bar */}
+                    <div
+                      className="absolute left-0 top-0 bottom-0 w-[4px] rounded-l-[3px] transition-opacity"
+                      style={{ background: opt.hex }}
+                    />
 
-              {/* Negative Vote */}
-              <button
-                onClick={() => handleVote("DOWN")}
-                disabled={submitting}
-                className="glass-panel glass-panel-hover p-8 rounded-3xl border border-rose-500/30 bg-rose-950/20 flex flex-col items-center justify-center space-y-3 group active:scale-95 transition-all cursor-pointer disabled:opacity-50"
-              >
-                <div className="h-16 w-16 rounded-2xl bg-rose-500/20 text-rose-400 group-hover:scale-110 group-hover:bg-rose-500 group-hover:text-white transition-all flex items-center justify-center shadow-lg shadow-rose-500/20">
-                  <ThumbsDown className="h-8 w-8" />
-                </div>
-                <span className="font-extrabold text-base text-rose-300 group-hover:text-rose-200">
-                  POOR 👎
-                </span>
-              </button>
-            </div>
+                    {/* Monospace Number */}
+                    <span className="font-mono text-xs font-bold w-4 flex-none" style={{ color: opt.hex }}>
+                      {opt.n}
+                    </span>
 
-            <div className="flex items-center justify-center space-x-1.5 text-[11px] text-slate-500 pt-2">
-              <ShieldCheck className="h-3.5 w-3.5 text-indigo-400" />
-              <span>Feedback limit: 1 response per 15 minutes</span>
+                    {/* Text Label */}
+                    <span className="text-sm font-medium tracking-tight flex-1 truncate">{opt.t}</span>
+
+                    {/* Marked Status Badge */}
+                    <span className="font-mono text-[9px] tracking-[0.18em] uppercase text-[#7A8085] opacity-0 group-hover:opacity-100 transition-opacity">
+                      MARK
+                    </span>
+                  </button>
+                );
+              })}
             </div>
           </div>
         )}
       </main>
 
       {/* Footer */}
-      <footer className="py-4 text-center text-[11px] text-slate-500 z-10">
-        Experience Center Realtime Feedback Engine
+      <footer className="py-2 text-center font-mono text-[10px] text-[#4C5155] border-t border-[#1B1D20] flex-none">
+        PULSE ROOM SIGNAL &middot; {session?.speaker}
       </footer>
     </div>
   );
