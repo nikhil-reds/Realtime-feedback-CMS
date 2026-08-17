@@ -44,17 +44,20 @@ model Session {
 }
 
 model Feedback {
-  id        String   @id @default(uuid())
-  sessionId String
-  session   Session  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  visitorId String?  // Anonymous visitor/device identifier to prevent duplicate spam
-  vote      VoteType
-  ipHash    String?
-  userAgent String?
-  createdAt DateTime @default(now())
+  id          String   @id @default(uuid())
+  sessionId   String
+  session     Session  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  visitorId   String?  // Anonymous visitor/device identifier to prevent duplicate spam
+  visitorCode String?  // Short human-readable code assigned to a visitor, retained via cookie
+  vote        VoteType
+  rating      Int?     // 1-7 PULSE scale rating; source of truth for the 7-category breakdown
+  ipHash      String?
+  userAgent   String?
+  createdAt   DateTime @default(now())
 
   @@index([sessionId])
   @@index([createdAt])
+  @@index([sessionId, visitorCode])
 }
 
 model SessionEvent {
