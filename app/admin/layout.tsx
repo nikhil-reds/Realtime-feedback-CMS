@@ -1,5 +1,8 @@
+"use client";
+
 import React from "react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import {
   Radio,
   PlusCircle,
@@ -15,6 +18,23 @@ export default function AdminLayout({
 }: {
   children: React.ReactNode;
 }) {
+  const pathname = usePathname();
+
+  // Check if current route is a session control room or display page
+  // (excluding /admin/sessions list and /admin/sessions/new)
+  const isFullWidthRoute =
+    pathname?.startsWith("/admin/sessions/") &&
+    pathname !== "/admin/sessions" &&
+    !pathname.endsWith("/new");
+
+  if (isFullWidthRoute) {
+    return (
+      <div className="min-h-screen w-screen bg-[#0A0B0C] text-[#E9EBED] font-sans overflow-x-hidden selection:bg-[#2FD98A] selection:text-black">
+        {children}
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-indigo-500 selection:text-white">
       {/* Top Navbar */}
@@ -105,18 +125,7 @@ export default function AdminLayout({
         {children}
       </main>
 
-      {/* Footer */}
-      <footer className="border-t border-slate-900 bg-slate-950/80 px-4 sm:px-6 py-4 text-center text-xs text-slate-500 flex flex-col sm:flex-row items-center justify-between gap-2">
-        <div>
-          Realtime Feedback CMS &copy; {new Date().getFullYear()} Experience Center
-        </div>
-        <div className="flex items-center space-x-4">
-          <span className="inline-flex items-center space-x-1 text-slate-400">
-            <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></span>
-            <span>Realtime Engine Active</span>
-          </span>
-        </div>
-      </footer>
+   
     </div>
   );
 }
