@@ -2,13 +2,32 @@
 
 @layer base {
   :root {
-    --background: #090d16;
-    --foreground: #f8fafc;
+    --background: #0A0B0C;
+    --foreground: #E9EBED;
+
+    /* PULSE Room Signal Theme Variables */
+    --bg: #0A0B0C;
+    --panel: #101113;
+    --sunk: #0C0D0F;
+    --line: #1B1D20;
+    --line2: #26292D;
+    --line3: #34383D;
+    --text: #E9EBED;
+    --dim: #7A8085;
+    --dimmer: #4C5155;
+
+    --s1: #2FD98A;
+    --s2: #6ADB6A;
+    --s3: #A8D94F;
+    --s4: #E2C63F;
+    --s5: #EE9B3C;
+    --s6: #F06B41;
+    --s7: #E8434B;
   }
 
   body {
-    background-color: var(--background);
-    color: var(--foreground);
+    background-color: var(--bg);
+    color: var(--text);
     font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
     overflow-x: hidden;
   }
