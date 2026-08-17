@@ -12,6 +12,20 @@ export function generatePublicId(): string {
 }
 
 /**
+ * Generates a short 4-character uppercase alphanumeric visitor code
+ * (same alphabet as generatePublicId) assigned to a feedback submitter
+ * and retained via cookie so returning visitors keep the same identity.
+ */
+export function generateVisitorCode(): string {
+  const chars = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ";
+  let result = "";
+  for (let i = 0; i < 4; i++) {
+    result += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return result;
+}
+
+/**
  * Calculates satisfaction percentage given up and down vote counts.
  */
 export function calculateSatisfaction(upVotes: number, downVotes: number): number {
