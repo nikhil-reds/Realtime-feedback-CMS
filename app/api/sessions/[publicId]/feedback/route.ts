@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { generateVisitorCode } from "@/lib/session";
 
 export async function POST(
   req: Request,
@@ -8,14 +9,28 @@ export async function POST(
   try {
     const { publicId } = await params;
     const body = await req.json();
-    const { vote, visitorId } = body;
+    const { vote, rating, visitorId, visitorCode: incomingCode } = body;
 
-    if (!vote || (vote !== "UP" && vote !== "DOWN")) {
+    let voteType: "UP" | "DOWN" | null = null;
+    if (vote === "UP" || vote === "DOWN") {
+      voteType = vote;
+    } else if (typeof rating === "number" && rating >= 1 && rating <= 7) {
+      voteType = rating <= 3 ? "UP" : "DOWN";
+    }
+
+    if (!voteType) {
       return NextResponse.json(
-        { success: false, error: "Invalid vote type. Must be UP or DOWN" },
+        { success: false, error: "Invalid vote type or rating. Must be UP/DOWN or rating 1-7" },
         { status: 400 }
       );
     }
+    const finalVote = voteType;
+    const finalRating: number =
+      typeof rating === "number" && rating >= 1 && rating <= 7
+        ? rating
+        : finalVote === "UP"
+        ? 2
+        : 6;
 
     const session = await prisma.session.findUnique({
       where: { publicId },
@@ -101,12 +116,32 @@ export async function POST(
     const forwardedFor = req.headers.get("x-forwarded-for");
     const ipHash = forwardedFor ? forwardedFor.split(",")[0].trim() : "anonymous";
 
+    // Resolve visitor code: reuse the cookie-retained code if the client already has one,
+    // otherwise mint a new one that's unique within this session.
+    const validIncomingCode =
+      typeof incomingCode === "string" && /^[A-Z0-9]{4}$/.test(incomingCode) ? incomingCode : null;
+
+    let visitorCode: string = validIncomingCode ?? "";
+    if (!validIncomingCode) {
+      let candidate = generateVisitorCode();
+      while (
+        await prisma.feedback.findFirst({
+          where: { sessionId: session.id, visitorCode: candidate },
+        })
+      ) {
+        candidate = generateVisitorCode();
+      }
+      visitorCode = candidate;
+    }
+
     // Save feedback record
     const feedback = await prisma.feedback.create({
       data: {
         sessionId: session.id,
-        vote: vote as "UP" | "DOWN",
+        vote: finalVote,
+        rating: finalRating,
         visitorId: visitorId || null,
+        visitorCode,
         ipHash,
         userAgent,
       },
@@ -116,10 +151,12 @@ export async function POST(
     await prisma.sessionEvent.create({
       data: {
         sessionId: session.id,
-        eventType: vote === "UP" ? "FEEDBACK_UP" : "FEEDBACK_DOWN",
+        eventType: finalVote === "UP" ? "FEEDBACK_UP" : "FEEDBACK_DOWN",
         metadata: {
-          vote,
+          vote: finalVote,
+          rating: finalRating,
           visitorId: visitorId || null,
+          visitorCode,
           time: new Date().toISOString(),
         },
       },
@@ -140,6 +177,7 @@ export async function POST(
     const response = NextResponse.json({
       success: true,
       feedbackId: feedback.id,
+      visitorCode,
       cooldownMs: COOLDOWN_MS,
       stats: {
         upVotes: upCount,
@@ -155,6 +193,14 @@ export async function POST(
       sameSite: "lax",
       path: "/",
       maxAge: 15 * 60, // 15 minutes
+    });
+
+    // Persist the visitor code for a year so returning visitors keep the same identity
+    response.cookies.set(`pulse_code_${publicId}`, visitorCode, {
+      httpOnly: false,
+      sameSite: "lax",
+      path: "/",
+      maxAge: 60 * 60 * 24 * 365,
     });
 
     return response;
