@@ -1,0 +1,1018 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
+<meta name="theme-color" content="#0A0B0C">
+<title>PULSE — room signal</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0A0B0C; --panel:#101113; --sunk:#0C0D0F;
+  --line:#1B1D20; --line2:#26292D; --line3:#34383D;
+  --text:#E9EBED; --dim:#7A8085; --dimmer:#4C5155;
+
+  --s1:#2FD98A; --s2:#6ADB6A; --s3:#A8D94F;
+  --s4:#E2C63F; --s5:#EE9B3C; --s6:#F06B41; --s7:#E8434B;
+
+  --mono:'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --sans:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{height:100%}
+body{
+  background:var(--bg);color:var(--text);font-family:var(--sans);
+  font-size:14px;line-height:1.45;overflow:hidden;
+  -webkit-font-smoothing:antialiased;
+}
+button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
+input{font:inherit;color:inherit;background:none;border:none;outline:none}
+::selection{background:#2A2E33}
+:focus-visible{outline:1px solid var(--line3);outline-offset:2px}
+
+.mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.lbl{
+  font-family:var(--mono);font-size:9.5px;font-weight:500;letter-spacing:.16em;
+  text-transform:uppercase;color:var(--dimmer);
+}
+.hide{display:none !important}
+
+/* ─── shell ─────────────────────────────────────────── */
+#app{height:100%;display:flex;flex-direction:column}
+
+/* ─── chooser ───────────────────────────────────────── */
+.chooser{height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:34px;padding:24px}
+.wordmark{font-family:var(--mono);font-weight:700;font-size:13px;letter-spacing:.42em;text-indent:.42em}
+.wordmark small{display:block;font-weight:400;font-size:9px;letter-spacing:.2em;color:var(--dimmer);margin-top:8px;text-indent:.2em}
+.choices{display:flex;gap:12px;flex-wrap:wrap;justify-content:center}
+.choice{
+  border:1px solid var(--line2);border-radius:3px;padding:22px 30px;min-width:190px;
+  transition:border-color .15s,background .15s;text-align:left;
+}
+.choice:hover{border-color:var(--line3);background:var(--panel)}
+.choice b{display:block;font-family:var(--mono);font-size:12px;font-weight:500;letter-spacing:.12em;margin-bottom:5px}
+.choice span{font-size:12px;color:var(--dim)}
+
+/* ─── header ────────────────────────────────────────── */
+header{
+  flex:0 0 auto;display:flex;align-items:center;gap:0;
+  border-bottom:1px solid var(--line);background:var(--bg);height:62px;
+}
+.hcell{padding:0 18px;height:100%;display:flex;flex-direction:column;justify-content:center;gap:3px;border-right:1px solid var(--line)}
+.hcell .v{font-family:var(--mono);font-size:15px;font-weight:500;font-variant-numeric:tabular-nums;line-height:1}
+.hcell.brand{gap:7px}
+.hspace{flex:1;border-right:1px solid var(--line);height:100%}
+.hactions{display:flex;gap:8px;padding:0 14px 0 16px;align-items:center}
+.btn{
+  font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;
+  border:1px solid var(--line2);border-radius:2px;padding:7px 11px;color:var(--dim);
+  transition:.15s;white-space:nowrap;
+}
+.btn:hover{border-color:var(--line3);color:var(--text)}
+.btn.on{border-color:var(--line3);color:var(--text);background:var(--panel)}
+.btn.key{color:var(--text);border-color:var(--line3)}
+
+/* countdown bar under header */
+.tick{flex:0 0 auto;height:2px;background:var(--line);position:relative;overflow:hidden}
+.tick i{position:absolute;inset:0 auto 0 0;background:var(--line3);transition:width 1s linear}
+
+/* ─── rehearsal strip ───────────────────────────────── */
+.reh{
+  flex:0 0 auto;display:flex;align-items:center;gap:16px;padding:0 18px;height:38px;
+  border-bottom:1px solid var(--line);background:#0D0E10;
+}
+.reh .lbl{color:var(--dim)}
+.reh .note{font-size:11.5px;color:var(--dimmer)}
+.reh .grp{display:flex;gap:1px;margin-left:auto;background:var(--line);border:1px solid var(--line);border-radius:2px;overflow:hidden}
+.spd{
+  font-family:var(--mono);font-size:10px;letter-spacing:.1em;padding:6px 11px;
+  background:var(--bg);color:var(--dimmer);transition:.15s;
+}
+.spd:hover{color:var(--text)}
+.spd.on{background:#E9EBED;color:#0A0B0C}
+.pip{width:5px;height:5px;border-radius:50%;background:var(--s1);flex:0 0 auto}
+@keyframes bl{0%,100%{opacity:1}50%{opacity:.25}}
+.pip.live{animation:bl 1.6s ease-in-out infinite}
+
+/* ─── host body ─────────────────────────────────────── */
+.body{flex:1;display:flex;min-height:0}
+.rail{
+  height:100%;aspect-ratio:9/16;min-width:284px;max-width:460px;flex:0 0 auto;
+  border-right:1px solid var(--line);display:flex;flex-direction:column;min-height:0;background:var(--sunk);
+}
+.railhead{display:flex;align-items:center;justify-content:space-between;padding:11px 14px;border-bottom:1px solid var(--line);flex:0 0 auto}
+.sortbtn{font-family:var(--mono);font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--dimmer);padding:3px 6px;border:1px solid transparent;border-radius:2px}
+.sortbtn:hover{color:var(--dim)}
+.sortbtn.on{color:var(--text);border-color:var(--line2)}
+.raillist{flex:1;overflow-y:auto;overscroll-behavior:contain}
+.raillist::-webkit-scrollbar{width:6px}
+.raillist::-webkit-scrollbar-thumb{background:var(--line2);border-radius:3px}
+.raillist::-webkit-scrollbar-track{background:transparent}
+
+.row{padding:9px 14px 10px;border-bottom:1px solid var(--line);display:block;width:100%;text-align:left}
+.row:hover{background:#0F1012}
+.rowtop{display:flex;align-items:center;gap:7px;margin-bottom:6px}
+.dot{width:6px;height:6px;border-radius:50%;flex:0 0 auto}
+.code{font-family:var(--mono);font-size:10.5px;letter-spacing:.09em;color:var(--dim)}
+.seat{font-family:var(--mono);font-size:9px;color:var(--dimmer);letter-spacing:.08em}
+.now{margin-left:auto;font-family:var(--mono);font-size:10px;letter-spacing:.06em;color:var(--dimmer)}
+.track{position:relative;height:26px;display:grid;gap:2px}
+.cellwrap{position:relative;border-radius:1.5px;background:rgba(255,255,255,.035)}
+.cellwrap.q{outline:1px solid var(--line3);outline-offset:0}
+.track svg{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+
+/* ─── charts ────────────────────────────────────────── */
+.stack{flex:1;display:flex;flex-direction:column;min-width:0;min-height:0}
+.panel{display:flex;flex-direction:column;min-height:0;position:relative}
+.panel+.panel{border-top:1px solid var(--line)}
+.p-all{flex:1.12}
+.p-avg{flex:.88}
+.phead{display:flex;align-items:center;gap:14px;padding:11px 18px 10px;flex:0 0 auto}
+.phead .spread{margin-left:auto;display:flex;align-items:center;gap:14px}
+.dist{display:flex;gap:2px;height:9px;width:190px}
+.dist i{flex:0 0 0%;border-radius:1px;transition:flex-basis .4s ease}
+.big{font-family:var(--mono);font-size:24px;font-weight:500;line-height:1;font-variant-numeric:tabular-nums}
+.chart{flex:1;min-height:0;position:relative}
+.chart svg{position:absolute;inset:0;width:100%;height:100%;display:block}
+.axis{position:absolute;left:0;top:0;bottom:0;width:0}
+
+.empty{
+  position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+  font-family:var(--mono);font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--dimmer);
+  text-align:center;padding:20px;
+}
+
+/* ─── join overlay ──────────────────────────────────── */
+.overlay{position:fixed;inset:0;background:var(--bg);z-index:50;display:flex;flex-direction:column}
+.ovbody{flex:1;display:flex;min-height:0}
+.ovleft{flex:0 0 46%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:26px;border-right:1px solid var(--line);padding:30px}
+.qr{background:#E9EBED;padding:14px;border-radius:3px;line-height:0}
+.qr svg{display:block;width:min(38vh,330px);height:min(38vh,330px);shape-rendering:crispEdges}
+.url{font-family:var(--mono);font-size:16px;letter-spacing:.06em;color:var(--text);word-break:break-all;text-align:center;max-width:420px}
+.ovright{flex:1;display:flex;flex-direction:column;min-height:0;padding:30px 34px}
+.roster{flex:1;overflow-y:auto;align-content:start;display:grid;grid-template-columns:repeat(auto-fill,minmax(104px,1fr));gap:1px;background:var(--line);border:1px solid var(--line);margin-top:16px}
+.rcard{background:var(--bg);padding:11px 12px;display:flex;align-items:center;gap:8px;height:44px}
+.rcard .n{font-family:var(--mono);font-size:9px;color:var(--dimmer)}
+.rcard .c{font-family:var(--mono);font-size:13.5px;letter-spacing:.11em;margin-left:auto}
+
+/* ─── student ───────────────────────────────────────── */
+.stu{height:100%;display:flex;flex-direction:column;background:var(--bg)}
+.stuhead{flex:0 0 auto;padding:14px 18px calc(12px);border-bottom:1px solid var(--line);display:flex;align-items:center;gap:12px}
+.stuhead .who{margin-left:auto;display:flex;align-items:center;gap:7px}
+.gate{flex:1;display:flex;flex-direction:column;justify-content:center;gap:30px;padding:26px}
+.gate h1{font-family:var(--mono);font-size:12px;font-weight:500;letter-spacing:.3em;text-transform:uppercase}
+.gate p{color:var(--dim);font-size:13px;max-width:30ch}
+.codein{
+  font-family:var(--mono);font-size:38px;letter-spacing:.34em;text-transform:uppercase;
+  border-bottom:1px solid var(--line2);padding:10px 0 12px;width:100%;text-align:center;text-indent:.34em;
+}
+.codein::placeholder{color:#25282B}
+.gate .err{color:var(--s7);font-family:var(--mono);font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;min-height:14px}
+.godeep{border:1px solid var(--line2);border-radius:2px;padding:15px;font-family:var(--mono);font-size:11px;letter-spacing:.2em;text-transform:uppercase;width:100%}
+.godeep:disabled{color:var(--dimmer)}
+
+.scale{flex:1;display:flex;flex-direction:column;gap:2px;padding:12px;min-height:0}
+.opt{
+  flex:1;border-radius:3px;position:relative;display:flex;align-items:center;gap:13px;
+  padding:0 16px 0 20px;border:1px solid transparent;transition:flex-grow .34s cubic-bezier(.2,.8,.2,1),background .18s;
+  min-height:0;overflow:hidden;
+}
+.opt::before{content:'';position:absolute;left:0;top:0;bottom:0;width:4px;border-radius:3px 0 0 3px;background:var(--edge);transition:opacity .18s}
+.opt[aria-pressed="true"]::before{opacity:0}
+.opt .num{font-family:var(--mono);font-size:11px;width:12px;flex:0 0 auto;opacity:.85}
+.opt .txt{font-size:14.5px;font-weight:500;letter-spacing:-.005em}
+.opt .mark{margin-left:auto;font-family:var(--mono);font-size:9px;letter-spacing:.18em;opacity:0;transition:opacity .2s}
+.opt[aria-pressed="true"]{flex-grow:2.1}
+.opt[aria-pressed="true"] .mark{opacity:1}
+.stufoot{flex:0 0 auto;padding:13px 18px calc(13px + env(safe-area-inset-bottom));border-top:1px solid var(--line);display:flex;align-items:center;gap:12px}
+.stufoot .t{font-family:var(--mono);font-size:19px;font-variant-numeric:tabular-nums}
+.stufoot .m{font-size:11.5px;color:var(--dim);margin-left:auto;text-align:right;max-width:20ch;line-height:1.35}
+.wait{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:30px;text-align:center}
+.wait .t{font-family:var(--mono);font-size:46px;font-variant-numeric:tabular-nums}
+
+.badge{font-family:var(--mono);font-size:9px;letter-spacing:.14em;text-transform:uppercase;border:1px solid var(--line2);border-radius:2px;padding:4px 7px;color:var(--dim)}
+
+@media (max-width:900px){
+  .body{flex-direction:column;overflow-y:auto}
+  .rail{aspect-ratio:auto;max-width:none;width:100%;height:auto;max-height:44vh;border-right:none;border-bottom:1px solid var(--line)}
+  .stack{min-height:60vh}
+  header{height:auto;flex-wrap:wrap}
+  .hcell{border-bottom:1px solid var(--line);padding:10px 14px;flex:1 0 33%}
+  .hspace{display:none}
+  .ovbody{flex-direction:column}
+  .ovleft{flex:0 0 auto;border-right:none;border-bottom:1px solid var(--line)}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none !important;animation:none !important}}
+</style>
+</head>
+<body>
+<div id="app"></div>
+
+<script>
+/* ══════════════════════════════════════════════════════════════════
+   QR — byte mode, ECC L, versions 1..10. Verified against reference
+   encoders; decodes cleanly. Bundled so the join screen works with
+   no internet (laptop hotspot / offline classroom LAN).
+   ══════════════════════════════════════════════════════════════════ */
+const QR=(function(){
+const EXP=new Array(256),LOG=new Array(256);
+for(let i=0;i<8;i++)EXP[i]=1<<i;
+for(let i=8;i<256;i++)EXP[i]=EXP[i-4]^EXP[i-5]^EXP[i-6]^EXP[i-8];
+for(let i=0;i<255;i++)LOG[EXP[i]]=i;
+const gexp=n=>{while(n<0)n+=255;while(n>=255)n-=255;return EXP[n]},glog=n=>LOG[n];
+const RS={1:[[1,26,19]],2:[[1,44,34]],3:[[1,70,55]],4:[[1,100,80]],5:[[1,134,108]],
+6:[[2,86,68]],7:[[2,98,78]],8:[[2,121,97]],9:[[2,146,116]],10:[[2,86,68],[2,87,69]]};
+const ALIGN={1:[],2:[6,18],3:[6,22],4:[6,26],5:[6,30],6:[6,34],7:[6,22,38],8:[6,24,42],9:[6,26,46],10:[6,28,50]};
+function generator(len){let p=[1];for(let i=0;i<len;i++){const n=new Array(p.length+1).fill(0);
+for(let j=0;j<p.length;j++){n[j]^=p[j];n[j+1]^=gexp(glog(p[j])+i);}p=n;}return p;}
+function ecBytes(d,ecLen){const g=generator(ecLen),b=d.concat(new Array(ecLen).fill(0));
+for(let i=0;i<d.length;i++){const c=b[i];if(!c)continue;const lc=glog(c);
+for(let j=0;j<g.length;j++)b[i+j]^=gexp(glog(g[j])+lc);}return b.slice(d.length);}
+function bitLen(n){let c=0;while(n!==0){c++;n>>>=1;}return c;}
+function bchFormat(d){let x=d<<10;while(bitLen(x)-bitLen(0x537)>=0)x^=0x537<<(bitLen(x)-bitLen(0x537));return((d<<10)|x)^0x5412;}
+function bchVersion(d){let x=d<<12;while(bitLen(x)-bitLen(0x1f25)>=0)x^=0x1f25<<(bitLen(x)-bitLen(0x1f25));return(d<<12)|x;}
+function maskFn(m,r,c){switch(m){case 0:return(r+c)%2===0;case 1:return r%2===0;case 2:return c%3===0;
+case 3:return(r+c)%3===0;case 4:return(Math.floor(r/2)+Math.floor(c/3))%2===0;
+case 5:return((r*c)%2)+((r*c)%3)===0;case 6:return(((r*c)%2)+((r*c)%3))%2===0;
+case 7:return(((r+c)%2)+((r*c)%3))%2===0;}}
+function utf8(s){const o=[];for(const ch of unescape(encodeURIComponent(s)))o.push(ch.charCodeAt(0));return o;}
+function render(version,size,cw,mask){
+const m=Array.from({length:size},()=>new Array(size).fill(null));
+const fin=(r,c)=>{for(let dr=-1;dr<=7;dr++)for(let dc=-1;dc<=7;dc++){const rr=r+dr,cc=c+dc;
+if(rr<0||cc<0||rr>=size||cc>=size)continue;
+m[rr][cc]=(dr>=0&&dr<=6&&(dc===0||dc===6))||(dc>=0&&dc<=6&&(dr===0||dr===6))||(dr>=2&&dr<=4&&dc>=2&&dc<=4);}};
+fin(0,0);fin(0,size-7);fin(size-7,0);
+const ap=ALIGN[version];
+for(const r of ap)for(const c of ap){
+if((r<=8&&c<=8)||(r<=8&&c>=size-9)||(r>=size-9&&c<=8))continue;
+for(let dr=-2;dr<=2;dr++)for(let dc=-2;dc<=2;dc++)m[r+dr][c+dc]=Math.max(Math.abs(dr),Math.abs(dc))!==1;}
+for(let i=8;i<size-8;i++){if(m[6][i]===null)m[6][i]=i%2===0;if(m[i][6]===null)m[i][6]=i%2===0;}
+m[size-8][8]=true;
+const f=bchFormat((1<<3)|mask);
+for(let i=0;i<15;i++){const b=((f>>i)&1)===1;
+if(i<6)m[i][8]=b;else if(i<8)m[i+1][8]=b;else m[size-15+i][8]=b;
+if(i<8)m[8][size-i-1]=b;else if(i<9)m[8][15-i-1+1]=b;else m[8][15-i-1]=b;}
+if(version>=7){const vi=bchVersion(version);
+for(let i=0;i<18;i++){const b=((vi>>i)&1)===1;
+m[Math.floor(i/3)][size-11+(i%3)]=b;m[size-11+(i%3)][Math.floor(i/3)]=b;}}
+let idx=0,bit=7,dir=-1,row=size-1;
+for(let col=size-1;col>0;col-=2){if(col===6)col--;
+while(true){for(let k=0;k<2;k++){const c=col-k;
+if(m[row][c]===null){let dark=idx<cw.length?((cw[idx]>>>bit)&1)===1:false;
+if(maskFn(mask,row,c))dark=!dark;m[row][c]=dark;bit--;if(bit<0){idx++;bit=7;}}}
+row+=dir;if(row<0||row>=size){row-=dir;dir=-dir;break;}}}
+return m;}
+function penalty(m,size){let s=0;
+for(let i=0;i<size;i++)for(const ax of[0,1]){let run=1;
+for(let j=1;j<size;j++){const a=ax?m[j][i]:m[i][j],b=ax?m[j-1][i]:m[i][j-1];
+if(a===b)run++;else{if(run>=5)s+=run-2;run=1;}}if(run>=5)s+=run-2;}
+for(let r=0;r<size-1;r++)for(let c=0;c<size-1;c++){const v=m[r][c];
+if(v===m[r][c+1]&&v===m[r+1][c]&&v===m[r+1][c+1])s+=3;}
+const p=[1,0,1,1,1,0,1,0,0,0,0].map(Boolean),rp=p.slice().reverse();
+const mt=(g,i,pt)=>{for(let k=0;k<11;k++)if(g(i+k)!==pt[k])return false;return true;};
+for(let i=0;i<size;i++)for(let j=0;j<=size-11;j++){
+if(mt(k=>m[i][k],j,p))s+=40;if(mt(k=>m[i][k],j,rp))s+=40;
+if(mt(k=>m[k][i],j,p))s+=40;if(mt(k=>m[k][i],j,rp))s+=40;}
+let d=0;for(let r=0;r<size;r++)for(let c=0;c<size;c++)if(m[r][c])d++;
+s+=Math.floor(Math.abs((d*100)/(size*size)-50)/5)*10;return s;}
+function build(text){
+const bytes=utf8(text);let version=0;
+for(let v=1;v<=10;v++){const cap=RS[v].reduce((a,g)=>a+g[0]*g[2],0);
+if(bytes.length+2+(v<10?1:2)<=cap){version=v;break;}}
+if(!version)throw new Error('too long');
+const size=version*4+17,groups=RS[version],total=groups.reduce((a,g)=>a+g[0]*g[2],0);
+const bits=[],put=(v,l)=>{for(let i=l-1;i>=0;i--)bits.push((v>>>i)&1);};
+put(4,4);put(bytes.length,version<10?8:16);bytes.forEach(b=>put(b,8));
+for(let i=0;i<4&&bits.length<total*8;i++)bits.push(0);
+while(bits.length%8!==0)bits.push(0);
+const data=[];for(let i=0;i<bits.length;i+=8){let b=0;for(let j=0;j<8;j++)b=(b<<1)|bits[i+j];data.push(b);}
+let pad=0;while(data.length<total)data.push(pad++%2===0?0xEC:0x11);
+const db=[],eb=[];let off=0;
+groups.forEach(([count,tot,dc])=>{for(let i=0;i<count;i++){const d=data.slice(off,off+dc);off+=dc;db.push(d);eb.push(ecBytes(d,tot-dc));}});
+const mD=Math.max(...db.map(b=>b.length)),mE=Math.max(...eb.map(b=>b.length)),fin=[];
+for(let i=0;i<mD;i++)db.forEach(b=>{if(i<b.length)fin.push(b[i]);});
+for(let i=0;i<mE;i++)eb.forEach(b=>{if(i<b.length)fin.push(b[i]);});
+let best=null,bs=Infinity;
+for(let k=0;k<8;k++){const mm=render(version,size,fin,k),sc=penalty(mm,size);if(sc<bs){bs=sc;best=mm;}}
+return best;}
+function svg(text){
+const m=build(text),n=m.length,q=2,d=[];
+for(let r=0;r<n;r++)for(let c=0;c<n;c++)if(m[r][c])d.push(`M${c+q} ${r+q}h1v1h-1z`);
+return `<svg viewBox="0 0 ${n+q*2} ${n+q*2}" xmlns="http://www.w3.org/2000/svg"><path fill="#0A0B0C" d="${d.join('')}"/></svg>`;}
+return{build,svg};})();
+
+
+/* ══════════════════════════════════════════════════════════════════
+   CONFIG + STATE
+   ══════════════════════════════════════════════════════════════════ */
+const Q = new URLSearchParams(location.search);
+const CFG = {
+  windowMin : +(Q.get('win')   || 20),
+  hours     : +(Q.get('hours') || 6),
+  seats     : +(Q.get('n')     || 40),
+  speed     : +(Q.get('speed') || 1),   // ?speed=60 → a 20-min window ticks in 20s
+  title     : Q.get('title') || 'MASTERCLASS',
+  rehearse  : Q.get('rehearse') === '1'
+};
+CFG.windows  = Math.max(1, Math.round((CFG.hours*60) / CFG.windowMin));
+CFG.windowMs = (CFG.windowMin*60*1000) / CFG.speed;
+
+const SCALE = [
+  {n:1, t:"Please don't stop",     c:'var(--s1)', hex:'#2FD98A'},
+  {n:2, t:"It's interesting",       c:'var(--s2)', hex:'#6ADB6A'},
+  {n:3, t:"I feel it, go on",       c:'var(--s3)', hex:'#A8D94F'},
+  {n:4, t:"Reduce the complexity",  c:'var(--s4)', hex:'#E2C63F'},
+  {n:5, t:"We need a break",        c:'var(--s5)', hex:'#EE9B3C'},
+  {n:6, t:"Boring",                 c:'var(--s6)', hex:'#F06B41'},
+  {n:7, t:"When will this be over", c:'var(--s7)', hex:'#E8434B'}
+];
+const HEX = SCALE.map(s=>s.hex);
+
+const ALPHA='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);
+t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+function makeRoster(n,seed){
+  const rnd=mulberry32(seed),seen=new Set(),out=[];
+  while(out.length<n){let c='';for(let i=0;i<4;i++)c+=ALPHA[Math.floor(rnd()*ALPHA.length)];
+    if(seen.has(c))continue;seen.add(c);out.push(c);}
+  return out;
+}
+const hue = i => `hsl(${(i*137.508)%360} ${64+(i%3)*7}% ${60+(i%4)*4}%)`;
+
+let S = {
+  seed: 20260810, startedAt:null, pausedAt:null, pausedMs:0, day:1,
+  rehearseSpeed: null,
+  votes:{}   // code -> { windowIndex: 1..7 }
+};
+let ROSTER = makeRoster(CFG.seats, S.seed);
+let COLOR  = {}; ROSTER.forEach((c,i)=>COLOR[c]=hue(i));
+
+function rebuildRoster(){
+  ROSTER = makeRoster(CFG.seats, S.seed);
+  COLOR = {}; ROSTER.forEach((c,i)=>COLOR[c]=hue(i));
+}
+
+/* clock ------------------------------------------------------------ */
+function elapsed(){
+  if(!S.startedAt) return 0;
+  const end = S.pausedAt || Date.now();
+  return Math.max(0, end - S.startedAt - S.pausedMs);
+}
+function windowIndex(){
+  if(!S.startedAt) return -1;
+  return Math.min(CFG.windows-1, Math.floor(elapsed()/CFG.windowMs));
+}
+function remainingMs(){
+  if(!S.startedAt) return 0;
+  if(elapsed() >= CFG.windows*CFG.windowMs) return 0;
+  return CFG.windowMs - (elapsed() % CFG.windowMs);
+}
+function finished(){ return S.startedAt && elapsed() >= CFG.windows*CFG.windowMs; }
+const mmss = ms => {
+  const s=Math.max(0,Math.round(ms/1000));
+  return String(Math.floor(s/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0');
+};
+
+/* ══════════════════════════════════════════════════════════════════
+   SYNC — talks to server.js if present, otherwise same-device demo
+   ══════════════════════════════════════════════════════════════════ */
+const Net = {
+  mode:'local', bc:null, ready:false,
+  async init(){
+    try{
+      const r = await fetch('api/state',{cache:'no-store'});
+      if(r.ok){ const j=await r.json(); this.mode='server'; apply(j); this.ready=true; return; }
+    }catch(e){}
+    this.mode='local';
+    try{
+      this.bc = new BroadcastChannel('pulse');
+      this.bc.onmessage = e => { apply(e.data); render(); };
+    }catch(e){}
+    this.ready = true;
+  },
+  async pull(){
+    if(this.mode!=='server') return;
+    try{ const r=await fetch('api/state',{cache:'no-store'}); if(r.ok) apply(await r.json()); }catch(e){}
+  },
+  async push(patch){
+    if(this.mode==='server'){
+      try{ const r=await fetch('api/patch',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify(patch)}); if(r.ok) apply(await r.json()); }catch(e){}
+    }else{
+      if(patch.vote){ (S.votes[patch.vote.code] ||= {})[patch.vote.w] = patch.vote.v; }
+      if(patch.session) Object.assign(S, patch.session);
+      if(this.bc) this.bc.postMessage(snapshot());
+    }
+    render();
+  }
+};
+function snapshot(){ return {seed:S.seed,startedAt:S.startedAt,pausedAt:S.pausedAt,pausedMs:S.pausedMs,day:S.day,rehearseSpeed:S.rehearseSpeed,votes:S.votes}; }
+function apply(j){
+  if(!j) return;
+  const seedChanged = j.seed !== undefined && j.seed !== S.seed;
+  Object.assign(S, j);
+  if(seedChanged) rebuildRoster();
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   DERIVED
+   ══════════════════════════════════════════════════════════════════ */
+const seriesFor = code => {
+  const v=S.votes[code]||{}, out=[];
+  for(let w=0;w<CFG.windows;w++) out.push(v[w]!==undefined ? v[w] : null);
+  return out;
+};
+function averages(){
+  const out=[];
+  for(let w=0;w<CFG.windows;w++){
+    let sum=0,n=0;
+    for(const c of ROSTER){ const v=S.votes[c]?.[w]; if(v){sum+=v;n++;} }
+    out.push(n? sum/n : null);
+  }
+  return out;
+}
+function distribution(w){
+  const d=[0,0,0,0,0,0,0];
+  for(const c of ROSTER){ const v=S.votes[c]?.[w]; if(v) d[v-1]++; }
+  return d;
+}
+const respondedIn = w => ROSTER.filter(c=>S.votes[c]?.[w]!==undefined).length;
+
+/* ══════════════════════════════════════════════════════════════════
+   SVG helpers
+   ══════════════════════════════════════════════════════════════════ */
+function smooth(pts){
+  if(pts.length<3) return pts.map((p,i)=>`${i?'L':'M'}${p[0].toFixed(1)} ${p[1].toFixed(1)}`).join('');
+  let d=`M${pts[0][0].toFixed(1)} ${pts[0][1].toFixed(1)}`;
+  for(let i=0;i<pts.length-1;i++){
+    const p0=pts[i-1]||pts[i], p1=pts[i], p2=pts[i+1], p3=pts[i+2]||p2, t=.16;
+    const c1=[p1[0]+(p2[0]-p0[0])*t, p1[1]+(p2[1]-p0[1])*t];
+    const c2=[p2[0]-(p3[0]-p1[0])*t, p2[1]-(p3[1]-p1[1])*t];
+    d+=`C${c1[0].toFixed(1)} ${c1[1].toFixed(1)},${c2[0].toFixed(1)} ${c2[1].toFixed(1)},${p2[0].toFixed(1)} ${p2[1].toFixed(1)}`;
+  }
+  return d;
+}
+function pathFrom(series, w, h, padY){
+  // returns array of path segments (breaks across missing windows)
+  const n = CFG.windows;
+  const x = i => n>1 ? (i/(n-1))*w : w/2;
+  const y = v => padY + ((v-1)/6)*(h-padY*2);
+  const segs=[]; let cur=[];
+  series.forEach((v,i)=>{
+    if(v===null){ if(cur.length){segs.push(cur);cur=[];} return; }
+    cur.push(`${x(i).toFixed(2)},${y(v).toFixed(2)}`);
+  });
+  if(cur.length) segs.push(cur);
+  return {segs, x, y};
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   VIEWS
+   ══════════════════════════════════════════════════════════════════ */
+const app = document.getElementById('app');
+let ROLE = Q.get('r'); // 's' | 'h'
+let ME   = (location.hash||'').replace('#','').toUpperCase() || null;
+let SORT = 'seat';
+let joinOpen = false;
+
+function render(){
+  if(ROLE==='h') renderHost();
+  else if(ROLE==='s') renderStudent();
+  else renderChooser();
+}
+
+/* ── chooser ───────────────────────────────────────── */
+function renderChooser(){
+  app.innerHTML = `
+  <div class="chooser">
+    <div class="wordmark">PULSE<small>ROOM SIGNAL · ${CFG.title}</small></div>
+    <div class="choices">
+      <button class="choice" data-r="h"><b>INSTRUCTOR</b><span>Live board, join screen, controls</span></button>
+      <button class="choice" data-r="s"><b>STUDENT</b><span>Mark how the room feels</span></button>
+      <button class="choice" id="reh"><b>REHEARSAL</b><span>39 fake students, sped up 10&times;</span></button>
+    </div>
+    <div class="lbl">${CFG.windowMin}-min windows · ${CFG.windows} per day · ${CFG.seats} seats</div>
+  </div>`;
+  app.querySelector('#reh').onclick=()=>setSpeed(10);
+  app.querySelectorAll('.choice[data-r]').forEach(b=>b.onclick=()=>{
+    ROLE=b.dataset.r;
+    const u=new URL(location.href); u.searchParams.set('r',ROLE); history.replaceState(null,'',u);
+    render();
+  });
+}
+
+/* ── instructor ────────────────────────────────────── */
+function renderHost(){
+  const w = windowIndex();
+  const live = w>=0 && !finished();
+  const resp = w>=0 ? respondedIn(w) : 0;
+  const avg  = averages();
+  const cur  = w>=0 ? avg[w] : null;
+  const running = S.startedAt && !S.pausedAt && !finished();
+
+  app.innerHTML = `
+    <header>
+      <div class="hcell brand">
+        <div class="wordmark" style="font-size:11px">PULSE</div>
+        <div class="lbl">${CFG.title} · DAY ${S.day}</div>
+      </div>
+      <div class="hcell"><span class="lbl">Window</span>
+        <span class="v">${w<0?'—':String(w+1).padStart(2,'0')}<span style="color:var(--dimmer)">/${CFG.windows}</span></span></div>
+      <div class="hcell"><span class="lbl">${finished()?'Day complete':S.pausedAt?'Paused':'Closes in'}</span>
+        <span class="v" id="cd">${S.startedAt?mmss(remainingMs()):'--:--'}</span></div>
+      <div class="hcell"><span class="lbl">Marked this window</span>
+        <span class="v">${resp}<span style="color:var(--dimmer)">/${CFG.seats}</span></span></div>
+      <div class="hcell"><span class="lbl">Room average</span>
+        <span class="v" style="color:${cur?tint(cur):'var(--dimmer)'}">${cur?cur.toFixed(2):'—'}</span></div>
+      <div class="hspace"></div>
+      <div class="hactions">
+        <span class="badge" title="${Net.mode==='server'?'Synced through the class server':'Same-device preview only — run server.js for real phones'}">${CFG.rehearse?'REHEARSAL':Net.mode==='server'?'LIVE':'DEMO'}</span>
+        <button class="btn" data-a="join">Join screen</button>
+        <button class="btn ${running?'':'key'}" data-a="toggle">${!S.startedAt?'Start day':S.pausedAt?'Resume':'Pause'}</button>
+        <button class="btn" data-a="menu">···</button>
+      </div>
+    </header>
+    <div class="tick"><i style="width:${S.startedAt&&!finished()?(100-(remainingMs()/CFG.windowMs)*100).toFixed(2):0}%"></i></div>
+    ${CFG.rehearse?rehearsalStrip():''}
+    <div class="body">
+      <aside class="rail">
+        <div class="railhead">
+          <span class="lbl">Every student · ${CFG.seats}</span>
+          <div style="display:flex;gap:2px">
+            <button class="sortbtn ${SORT==='seat'?'on':''}" data-s="seat">Seat</button>
+            <button class="sortbtn ${SORT==='mood'?'on':''}" data-s="mood">Mood</button>
+          </div>
+        </div>
+        <div class="raillist">${railRows(w)}</div>
+      </aside>
+      <div class="stack">
+        <section class="panel p-all">
+          <div class="phead">
+            <span class="lbl">All signals · every student, every window</span>
+            <div class="spread">
+              <span class="lbl">This window</span>
+              <div class="dist">${distribution(Math.max(w,0)).map((n,i)=>
+                `<i style="flex-basis:${resp?(n/resp*100):0}%;background:${HEX[i]};opacity:${n?.9:0}"></i>`).join('')}</div>
+            </div>
+          </div>
+          <div class="chart" id="chAll"></div>
+        </section>
+        <section class="panel p-avg">
+          <div class="phead">
+            <span class="lbl">Room average · one line</span>
+            <div class="spread">
+              <span class="big">${cur?cur.toFixed(2):'—'}</span>
+              <span class="lbl" style="max-width:16ch;text-align:right">${cur?SCALE[Math.round(cur)-1].t:'no marks yet'}</span>
+            </div>
+          </div>
+          <div class="chart" id="chAvg"></div>
+        </section>
+      </div>
+    </div>
+    ${joinOpen?joinOverlay():''}
+  `;
+
+  app.querySelector('[data-a="join"]').onclick = ()=>{joinOpen=true;render();};
+  app.querySelector('[data-a="toggle"]').onclick = onToggle;
+  app.querySelector('[data-a="menu"]').onclick = onMenu;
+  app.querySelectorAll('.sortbtn').forEach(b=>b.onclick=()=>{SORT=b.dataset.s;render();});
+  if(CFG.rehearse){
+    app.querySelectorAll('.spd').forEach(b=>b.onclick=()=>setSpeed(+b.dataset.x));
+    app.querySelector('[data-a="bots"]').onclick=()=>{Bots.running=!Bots.running;render();};
+    app.querySelector('[data-a="restart"]').onclick=()=>startRehearsal(true);
+  }
+  if(joinOpen){
+    app.querySelector('[data-a="close"]').onclick=()=>{joinOpen=false;render();};
+  }
+  drawAll(document.getElementById('chAll'));
+  drawAvg(document.getElementById('chAvg'), avg);
+}
+
+const tint = v => HEX[Math.min(6,Math.max(0,Math.round(v)-1))];
+
+function railRows(w){
+  let list = ROSTER.map((c,i)=>({c,i}));
+  if(SORT==='mood'){
+    const last = o => { const s=seriesFor(o.c).filter(v=>v!==null); return s.length?s[s.length-1]:-1; };
+    list.sort((a,b)=> last(b)-last(a) || a.i-b.i);
+  }
+  return list.map(({c,i})=>{
+    const s = seriesFor(c);
+    const now = w>=0 ? s[w] : null;
+    const cells = s.map((v,k)=>
+      `<div class="cellwrap ${k===w?'q':''}" style="${v?`background:${HEX[v-1]};opacity:.58`:''}"></div>`).join('');
+    const cx = k => ((k+0.5)/CFG.windows)*100;
+    const cy = v => 4 + ((v-1)/6)*18;
+    const segs=[]; let run=[];
+    s.forEach((v,k)=>{ if(v===null){ if(run.length){segs.push(run);run=[];} return;} run.push([cx(k),cy(v)]); });
+    if(run.length) segs.push(run);
+    const line = segs.map(g=> g.length>1
+      ? `<polyline points="${g.map(q=>q[0].toFixed(2)+','+q[1].toFixed(2)).join(' ')}" fill="none"
+          stroke="${COLOR[c]}" stroke-width="1.5" vector-effect="non-scaling-stroke"
+          stroke-linejoin="round" stroke-linecap="round"/>`
+      : '').join('');
+    return `<div class="row">
+      <div class="rowtop">
+        <span class="dot" style="background:${COLOR[c]}"></span>
+        <span class="code">${c}</span>
+        <span class="seat">SEAT ${String(i+1).padStart(2,'0')}</span>
+        <span class="now" style="${now?`color:${HEX[now-1]}`:''}">${now?SCALE[now-1].t:'no mark'}</span>
+      </div>
+      <div class="track" style="grid-template-columns:repeat(${CFG.windows},1fr)">
+        ${cells}
+        <svg viewBox="0 0 100 26" preserveAspectRatio="none">${line}</svg>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function drawAll(host){
+  if(!host) return;
+  const w = host.clientWidth, h = host.clientHeight;
+  if(!w||!h) return;
+  const padL=118, padR=26, padT=16, padB=26;
+  const iw=w-padL-padR, ih=h-padT-padB;
+  const yOf = v => padT + ((v-1)/6)*ih;
+  const xOf = i => CFG.windows>1 ? padL+(i/(CFG.windows-1))*iw : padL+iw/2;
+
+  let bands='', labels='';
+  SCALE.forEach((s,k)=>{
+    const y0 = padT + ((k)/7)*ih*(7/6) ;
+    const by = Math.max(padT-2, yOf(k+1)-ih/12), bh = Math.min(ih/6, (padT+ih+2)-by);
+    bands += `<rect x="${padL}" y="${by}" width="${iw}" height="${bh}" fill="${s.hex}" opacity=".05"/>`;
+    labels += `<text x="${padL-12}" y="${yOf(k+1)+3.5}" text-anchor="end" fill="${s.hex}" opacity=".72"
+      font-family="Inter,sans-serif" font-size="10.5">${s.t}</text>`;
+    labels += `<line x1="${padL}" y1="${yOf(k+1)}" x2="${w-padR}" y2="${yOf(k+1)}" stroke="#FFFFFF" stroke-opacity=".05"/>`;
+  });
+
+  let ticks='';
+  for(let i=0;i<CFG.windows;i++){
+    ticks += `<text x="${xOf(i)}" y="${h-9}" text-anchor="middle" fill="#4C5155"
+      font-family="JetBrains Mono,monospace" font-size="8.5">${String(i+1).padStart(2,'0')}</text>`;
+  }
+  const wi = windowIndex();
+  const marker = wi>=0 ? `<line x1="${xOf(wi)}" y1="${padT-8}" x2="${xOf(wi)}" y2="${h-padB+4}"
+      stroke="#34383D" stroke-dasharray="2 3"/>` : '';
+
+  let lines='', any=false;
+  ROSTER.forEach(c=>{
+    const s=seriesFor(c);
+    const pts=[]; let cur=[];
+    s.forEach((v,i)=>{ if(v===null){if(cur.length){pts.push(cur);cur=[];}return;} cur.push([xOf(i),yOf(v)]); });
+    if(cur.length)pts.push(cur);
+    pts.forEach(g=>{
+      any=true;
+      if(g.length===1) lines+=`<circle cx="${g[0][0].toFixed(1)}" cy="${g[0][1].toFixed(1)}" r="2" fill="${COLOR[c]}" opacity=".55"/>`;
+      else lines+=`<path d="${smooth(g)}" fill="none" stroke="${COLOR[c]}" stroke-width="1.15"
+        stroke-linejoin="round" stroke-linecap="round" opacity=".4"/>`;
+    });
+  });
+
+  host.innerHTML = `<svg width="${w}" height="${h}">${bands}${labels}${marker}${ticks}${lines}</svg>`
+    + (any?'':`<div class="empty">waiting for the first marks</div>`);
+}
+
+function drawAvg(host, avg){
+  if(!host) return;
+  const w=host.clientWidth, h=host.clientHeight;
+  if(!w||!h) return;
+  const padL=118, padR=26, padT=18, padB=26;
+  const iw=w-padL-padR, ih=h-padT-padB;
+  const yOf=v=>padT+((v-1)/6)*ih;
+  const xOf=i=>CFG.windows>1?padL+(i/(CFG.windows-1))*iw:padL+iw/2;
+
+  let grid='';
+  [1,4,7].forEach(v=>{
+    grid+=`<line x1="${padL}" y1="${yOf(v)}" x2="${w-padR}" y2="${yOf(v)}" stroke="#FFFFFF" stroke-opacity=".055"/>`;
+    grid+=`<text x="${padL-12}" y="${yOf(v)+3.5}" text-anchor="end" fill="#4C5155"
+      font-family="JetBrains Mono,monospace" font-size="9">${v}</text>`;
+  });
+  grid+=`<text x="${padL-12}" y="${yOf(1)-10}" text-anchor="end" fill="#4C5155"
+    font-family="JetBrains Mono,monospace" font-size="8.5" letter-spacing="1.4">KEEP GOING</text>`;
+  grid+=`<text x="${padL-12}" y="${yOf(7)+18}" text-anchor="end" fill="#4C5155"
+    font-family="JetBrains Mono,monospace" font-size="8.5" letter-spacing="1.4">LOSING THEM</text>`;
+
+  const pts=[]; let cur=[];
+  avg.forEach((v,i)=>{ if(v===null){if(cur.length){pts.push(cur);cur=[];}return;} cur.push([xOf(i),yOf(v)]); });
+  if(cur.length)pts.push(cur);
+
+  let area='',line='',head='';
+  pts.forEach(g=>{
+    if(g.length>1){
+      const d=g.map((p,i)=>`${i?'L':'M'}${p[0].toFixed(1)} ${p[1].toFixed(1)}`).join('');
+      area+=`<path d="${d}L${g[g.length-1][0].toFixed(1)} ${h-padB}L${g[0][0].toFixed(1)} ${h-padB}Z" fill="url(#g)"/>`;
+      line+=`<path d="${d}" fill="none" stroke="#F2F4F5" stroke-width="1.9" stroke-linejoin="round" stroke-linecap="round"/>`;
+    }
+    g.forEach(p=>{ line+=`<circle cx="${p[0].toFixed(1)}" cy="${p[1].toFixed(1)}" r="2.2" fill="#0A0B0C" stroke="#F2F4F5" stroke-width="1.3"/>`; });
+  });
+  const lastG = pts[pts.length-1];
+  if(lastG){ const p=lastG[lastG.length-1];
+    head=`<circle cx="${p[0].toFixed(1)}" cy="${p[1].toFixed(1)}" r="4.5" fill="#F2F4F5"/>`; }
+
+  host.innerHTML = `<svg width="${w}" height="${h}">
+    <defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#F2F4F5" stop-opacity=".13"/>
+      <stop offset="1" stop-color="#F2F4F5" stop-opacity="0"/>
+    </linearGradient></defs>
+    ${grid}${area}${line}${head}</svg>`
+    + (pts.length?'':`<div class="empty">the average appears after the first window closes</div>`);
+}
+
+function joinOverlay(){
+  const url = studentURL();
+  let qr='';
+  try{ qr = QR.svg(url); }catch(e){ qr=''; }
+  return `<div class="overlay">
+    <header>
+      <div class="hcell brand"><div class="wordmark" style="font-size:11px">PULSE</div>
+        <div class="lbl">Join screen · project this</div></div>
+      <div class="hspace"></div>
+      <div class="hactions"><button class="btn key" data-a="close">Back to board</button></div>
+    </header>
+    <div class="ovbody">
+      <div class="ovleft">
+        ${qr?`<div class="qr">${qr}</div>`:''}
+        <div>
+          <div class="lbl" style="text-align:center;margin-bottom:9px">Scan, or type this in any browser</div>
+          <div class="url">${url}</div>
+        </div>
+      </div>
+      <div class="ovright">
+        <div class="lbl">Hand one code to each student · ${CFG.seats} seats</div>
+        <div class="roster">
+          ${ROSTER.map((c,i)=>`<div class="rcard">
+            <span class="dot" style="background:${COLOR[c]}"></span>
+            <span class="n">${String(i+1).padStart(2,'0')}</span>
+            <span class="c">${c}</span></div>`).join('')}
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+function studentURL(){
+  const u = new URL(location.href);
+  u.hash=''; u.searchParams.delete('r'); u.searchParams.set('r','s');
+  return u.toString();
+}
+
+/* ── host controls ─────────────────────────────────── */
+function onToggle(){
+  if(!S.startedAt) Net.push({session:{startedAt:Date.now(),pausedAt:null,pausedMs:0}});
+  else if(S.pausedAt) Net.push({session:{pausedMs:S.pausedMs+(Date.now()-S.pausedAt),pausedAt:null}});
+  else Net.push({session:{pausedAt:Date.now()}});
+}
+function onMenu(){
+  const pick = prompt(
+    'PULSE — type a number\n\n'+
+    '1  Export CSV\n'+
+    '2  Start day 2 (fresh board, same codes)\n'+
+    '3  Reset everything (new codes)\n'+
+    '4  Fill with a simulated room (preview only)'
+  );
+  if(pick==='1') exportCSV();
+  if(pick==='2'){ if(confirm('Clear all marks and start day '+(S.day+1)+'?'))
+      Net.push({session:{day:S.day+1,startedAt:null,pausedAt:null,pausedMs:0,votes:{}}}); }
+  if(pick==='3'){ if(confirm('Reset the session and issue new codes?'))
+      Net.push({session:{seed:Math.floor(Math.random()*1e9),day:1,startedAt:null,pausedAt:null,pausedMs:0,votes:{}}}); }
+  if(pick==='4') simulate();
+}
+function exportCSV(){
+  const head = ['seat','code',...Array.from({length:CFG.windows},(_,i)=>'w'+(i+1))];
+  const rows = ROSTER.map((c,i)=>[i+1,c,...seriesFor(c).map(v=>v===null?'':v)]);
+  const avg  = ['','AVERAGE',...averages().map(v=>v===null?'':v.toFixed(3))];
+  const csv  = [head,...rows,avg].map(r=>r.join(',')).join('\n');
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));
+  a.download=`pulse-day${S.day}-${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+}
+function simulate(){
+  const votes={};
+  ROSTER.forEach((c,i)=>{
+    const rnd=mulberry32(i*7919+13);
+    const patience = .6 + rnd()*1.1;              // how long this person stays with you
+    let v = 1.3 + rnd()*1.4, drift = 0;
+    votes[c]={};
+    for(let w=0;w<CFG.windows;w++){
+      const fatigue = (w/CFG.windows)*3.4/patience;
+      const slump   = (w%6===5) ? .8 : 0;         // the stretch right before a break
+      const reset   = (w>0 && w%6===0) ? -1.3 : 0;// fresh after a break
+      drift = drift*.6 + (rnd()-.5)*.7;
+      const target = 1.3 + fatigue + slump + reset + drift;
+      v = v*.55 + target*.45;
+      if(rnd()>0.09) votes[c][w] = Math.max(1,Math.min(7,Math.round(v)));
+    }
+  });
+  Net.push({session:{startedAt:Date.now()-CFG.windowMs*(CFG.windows-0.4),pausedAt:null,pausedMs:0,votes}});
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   REHEARSAL — simulated students that mark in real time.
+   Only ever runs on the instructor board, so one tab is the authority.
+   Seat 01 is deliberately left free: join on your own phone and you
+   become the 40th student.
+   ══════════════════════════════════════════════════════════════════ */
+const TICK_MS = 500;
+const SPEEDS = [
+  {x:1,  label:'1\u00D7'},
+  {x:10, label:'10\u00D7'},
+  {x:20, label:'20\u00D7'},
+  {x:60, label:'60\u00D7'}
+];
+const Bots = {
+  running:false, plan:{}, when:{}, seats:[],
+  build(){
+    this.seats = ROSTER.slice(1);              // seat 01 stays human
+    this.plan = {}; this.when = {};
+    this.seats.forEach((c,i)=>{
+      const rnd = mulberry32(i*7919 + S.seed % 9973);
+      const patience = .55 + rnd()*1.25;        // how long they stay with you
+      const punctual = rnd();                   // early marker vs. last-second
+      let v = 1.3 + rnd()*1.4, drift = 0;
+      const plan=[], when=[];
+      for(let w=0; w<CFG.windows; w++){
+        const fatigue = (w/CFG.windows)*3.4/patience;
+        const slump   = (w%6===5) ? .8 : 0;      // the stretch before a break
+        const reset   = (w>0 && w%6===0) ? -1.3 : 0;
+        drift = drift*.6 + (rnd()-.5)*.75;
+        v = v*.55 + (1.3 + fatigue + slump + reset + drift)*.45;
+        plan.push(rnd() > .09 ? Math.max(1, Math.min(7, Math.round(v))) : null);
+        when.push(Math.min(.93, punctual*.5 + rnd()*.55));
+      }
+      this.plan[c]=plan; this.when[c]=when;
+    });
+  },
+  tick(){
+    if(!this.running || !S.startedAt || S.pausedAt || finished()) return;
+    const w = windowIndex(); if(w<0) return;
+    const progress = 1 - remainingMs()/CFG.windowMs;
+
+    // whoever meant to mark by now and hasn't, earliest intention first
+    const due = this.seats
+      .filter(c => S.votes[c]?.[w] === undefined
+                && this.plan[c][w] !== null
+                && this.when[c][w] <= progress)
+      .sort((a,b) => this.when[a][w] - this.when[b][w]);
+    if(!due.length) return;
+
+    // trickle in, but never leave anyone stranded when the window is short
+    const ticksLeft = Math.max(1, Math.floor(remainingMs()/TICK_MS));
+    const batch = Math.max(3, Math.ceil(due.length / ticksLeft));
+    due.slice(0, batch).forEach(c => Net.push({vote:{code:c, w, v:this.plan[c][w]}}));
+  }
+};
+function setSpeed(x){
+  const u = new URL(location.href);
+  u.searchParams.set('r','h'); u.searchParams.set('rehearse','1'); u.searchParams.set('speed', x);
+  u.hash=''; location.href = u.toString();
+}
+function rehearsalStrip(){
+  const per = mmss(CFG.windowMs), day = Math.round(CFG.windows*CFG.windowMs/60000);
+  return `<div class="reh">
+    <span class="pip ${Bots.running?'live':''}" style="background:${Bots.running?'var(--s1)':'var(--dimmer)'}"></span>
+    <span class="lbl">Rehearsal</span>
+    <span class="note">39 simulated students &middot; one window every ${per} &middot; whole day in ${day} min
+      &middot; seat 01 is free, join it on your phone</span>
+    <div class="grp">
+      ${SPEEDS.map(s=>`<button class="spd ${CFG.speed===s.x?'on':''}" data-x="${s.x}">${s.label}</button>`).join('')}
+    </div>
+    <button class="btn" data-a="bots">${Bots.running?'Pause marks':'Resume marks'}</button>
+    <button class="btn" data-a="restart">Restart</button>
+  </div>`;
+}
+
+/* ── student ───────────────────────────────────────── */
+function renderStudent(){
+  if(!ME || !ROSTER.includes(ME)) return renderGate();
+  const w = windowIndex();
+  const mine = w>=0 ? S.votes[ME]?.[w] : undefined;
+  const done = finished();
+
+  const head = `
+    <div class="stuhead">
+      <div class="wordmark" style="font-size:10px">PULSE</div>
+      <div class="who">
+        <span class="dot" style="background:${COLOR[ME]}"></span>
+        <span class="code">${ME}</span>
+      </div>
+    </div>`;
+
+  if(w<0 || done){
+    app.innerHTML = `<div class="stu">${head}
+      <div class="wait">
+        <div class="lbl">${done?'That\'s a wrap':'Waiting for the room to start'}</div>
+        <div class="t">${done?'✓':'—'}</div>
+        <p style="color:var(--dim);max-width:26ch">${done
+          ?'Thanks for calling it as you saw it. Your marks are with the instructor.'
+          :'Keep this open. The first window opens when the session starts.'}</p>
+      </div></div>`;
+    return;
+  }
+
+  app.innerHTML = `<div class="stu">${head}
+    <div class="scale">
+      ${SCALE.map(s=>{
+        const on = mine===s.n;
+        return `<button class="opt" data-v="${s.n}" aria-pressed="${on}"
+          style="--edge:${s.hex};background:${on?s.hex:'rgba(255,255,255,.035)'};color:${on?'#0A0B0C':'var(--text)'};
+                 border-color:${on?s.hex:'transparent'}">
+          <span class="num" style="color:${on?'#0A0B0C':s.hex}">${s.n}</span>
+          <span class="txt">${s.t}</span>
+          <span class="mark">MARKED</span>
+        </button>`;}).join('')}
+    </div>
+    <div class="stufoot">
+      <span class="lbl">Window ${String(w+1).padStart(2,'0')}/${CFG.windows}</span>
+      <span class="t" id="scd">${mmss(remainingMs())}</span>
+      <span class="m">${mine
+        ? 'Change it any time before this window closes.'
+        : 'Tap the line that matches how you feel right now.'}</span>
+    </div>
+  </div>`;
+
+  app.querySelectorAll('.opt').forEach(b=>b.onclick=()=>{
+    if(navigator.vibrate) navigator.vibrate(8);
+    Net.push({vote:{code:ME, w, v:+b.dataset.v}});
+  });
+}
+
+function renderGate(){
+  app.innerHTML = `<div class="stu">
+    <div class="gate">
+      <div>
+        <h1>PULSE</h1>
+        <div class="lbl" style="margin-top:8px">${CFG.title}</div>
+      </div>
+      <p>Enter the four-character code on your slip. It stays yours for both days.</p>
+      <div>
+        <input class="codein mono" id="cin" maxlength="4" placeholder="····"
+          autocomplete="off" autocapitalize="characters" spellcheck="false" inputmode="text">
+        <div class="err" id="cerr"></div>
+      </div>
+      <button class="godeep" id="cgo" disabled>Enter the room</button>
+    </div>
+  </div>`;
+  const inp=document.getElementById('cin'), go=document.getElementById('cgo'), err=document.getElementById('cerr');
+  inp.focus();
+  const check=()=>{
+    inp.value=inp.value.toUpperCase().replace(/[^A-Z0-9]/g,'');
+    go.disabled = inp.value.length!==4;
+    err.textContent='';
+  };
+  inp.oninput=check;
+  const submit=()=>{
+    const c=inp.value.toUpperCase();
+    if(!ROSTER.includes(c)){ err.textContent='That code isn\'t on the list — check your slip'; return; }
+    ME=c; location.hash=c; render();
+  };
+  go.onclick=submit;
+  inp.onkeydown=e=>{ if(e.key==='Enter'&&inp.value.length===4) submit(); };
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   LOOP
+   ══════════════════════════════════════════════════════════════════ */
+let lastW = -2, lastRemain = '';
+function startRehearsal(force){
+  Bots.build();
+  const stale = force || !S.startedAt || S.rehearseSpeed !== CFG.speed || finished();
+  if(stale) Net.push({session:{startedAt:Date.now(),pausedAt:null,pausedMs:0,votes:{},rehearseSpeed:CFG.speed}});
+  Bots.running = true;
+  render();
+}
+function tick(){
+  if(CFG.rehearse && ROLE==='h') Bots.tick();
+  const w = windowIndex();
+  if(w!==lastW){ lastW=w; render(); }
+  else {
+    const t = mmss(remainingMs());
+    if(t!==lastRemain){
+      lastRemain=t;
+      const a=document.getElementById('cd'), b=document.getElementById('scd');
+      if(a) a.textContent = S.startedAt?t:'--:--';
+      if(b) b.textContent = t;
+      const bar=document.querySelector('.tick i');
+      if(bar&&S.startedAt&&!finished()) bar.style.width=(100-(remainingMs()/CFG.windowMs)*100).toFixed(2)+'%';
+    }
+  }
+}
+let ro;
+function watchResize(){
+  if(ro) ro.disconnect();
+  ro = new ResizeObserver(()=>{ if(ROLE==='h') render(); });
+  ro.observe(document.body);
+}
+
+(async function boot(){
+  await Net.init();
+  if(CFG.rehearse && ROLE==='h') startRehearsal(false); else render();
+  watchResize();
+  setInterval(tick, TICK_MS);
+  setInterval(()=>{ if(Net.mode==='server') Net.pull().then(()=>{ if(ROLE) render(); }); }, 2500);
+  window.addEventListener('hashchange',()=>{ ME=(location.hash||'').replace('#','').toUpperCase()||null; render(); });
+})();
+</script>
+</body>
+</html>
